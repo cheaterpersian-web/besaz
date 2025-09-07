@@ -850,7 +850,16 @@ class MainBot:
                     if '=' not in p:
                         raise ValueError('bad part')
                     k, v = [x.strip() for x in p.split('=', 1)]
-                    kv[k.upper()] = v
+                    # Normalize key to be more tolerant of typos/variants
+                    import re
+                    key_norm = re.sub(r'[^A-Z0-9]', '', k.upper())
+                    if key_norm in { 'CARD', 'CAERD', 'BANKCARD', 'CARDNUMBER', 'CARDNO', 'CARDNUM' }:
+                        kv_key = 'CARD'
+                    elif key_norm in { 'CRYPTO', 'WALLET', 'WALLETADDRESS', 'WALLETADDR', 'CRYPTOWALLET' }:
+                        kv_key = 'CRYPTO'
+                    else:
+                        kv_key = k.upper()
+                    kv[kv_key] = v
                 if 'CARD' in kv:
                     Config.BANK_CARD_NUMBER = kv['CARD']
                     await db.set_setting('BANK_CARD_NUMBER', kv['CARD'])
