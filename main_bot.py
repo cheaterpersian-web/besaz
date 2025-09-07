@@ -633,24 +633,30 @@ class MainBot:
         elif data == "update_payment_info":
             await self.prompt_update_payment_info(update, context)
     
+    @handle_telegram_errors
     async def show_pending_payments(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Show pending payments for admin"""
         payments = await db.get_pending_payments()
         
         if not payments:
-            text = "💳 **پرداخت‌های در انتظار**\\n\\nهیچ پرداخت در انتظاری یافت نشد."
+            text = "<b>💳 پرداخت‌های در انتظار</b>\n\nهیچ پرداخت در انتظاری یافت نشد."
             keyboard = [[InlineKeyboardButton("🔙 بازگشت به پنل ادمین", callback_data="admin_panel")]]
         else:
-            text = "💳 **پرداخت‌های در انتظار**\\n\\n"
+            text = "<b>💳 پرداخت‌های در انتظار</b>\n\n"
             keyboard = []
             
             for payment in payments:
-                text += f"**پرداخت #{payment['id']}**\\n"
-                text += f"کاربر: @{payment['username'] or payment['first_name']}\\n"
-                text += f"مبلغ: ${payment['amount']:.2f}\\n"
-                text += f"پلن: {payment['plan_type']}\\n"
-                text += f"روش: {payment['payment_method']}\\n"
-                text += f"تاریخ: {payment['created_at']}\\n\\n"
+                user_display = payment.get('username')
+                if user_display:
+                    user_display = '@' + user_display
+                else:
+                    user_display = payment.get('first_name') or f"ID {payment.get('user_id')}"
+                text += f"<b>پرداخت #{payment['id']}</b>\n"
+                text += f"کاربر: {escape(str(user_display))}\n"
+                text += f"مبلغ: ${payment['amount']:.2f}\n"
+                text += f"پلن: <code>{escape(str(payment['plan_type']))}</code>\n"
+                text += f"روش: {escape(str(payment['payment_method']))}\n"
+                text += f"تاریخ: {escape(str(payment['created_at']))}\n\n"
                 
                 keyboard.append([
                     InlineKeyboardButton(f"✅ تایید #{payment['id']}", callback_data=f"approve_payment_{payment['id']}"),
@@ -663,7 +669,7 @@ class MainBot:
         
         await update.callback_query.edit_message_text(
             text,
-            parse_mode=ParseMode.MARKDOWN,
+            parse_mode=ParseMode.HTML,
             reply_markup=reply_markup
         )
     
