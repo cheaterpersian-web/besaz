@@ -189,6 +189,20 @@ python-dotenv==1.0.1
             # Pass BOT_TOKEN via environment to support repos that read env directly
             env = os.environ.copy()
             env['BOT_TOKEN'] = bot_token
+            # Prefer per-bot admin/channel from DB if present
+            try:
+                bot_row = await db.get_bot(bot_id)
+                if bot_row and bot_row.get('admin_user_id'):
+                    env['ADMIN_ID'] = str(bot_row['admin_user_id'])
+                else:
+                    env['ADMIN_ID'] = str(Config.ADMIN_USER_ID or '')
+                if bot_row and bot_row.get('locked_channel_id'):
+                    env['CHANNEL_ID'] = str(bot_row['locked_channel_id'])
+                else:
+                    env['CHANNEL_ID'] = str(Config.LOCKED_CHANNEL_ID or '')
+            except Exception:
+                env['ADMIN_ID'] = str(Config.ADMIN_USER_ID or '')
+                env['CHANNEL_ID'] = str(Config.LOCKED_CHANNEL_ID or '')
             env['PYTHONUNBUFFERED'] = '1'
 
             process = subprocess.Popen(

@@ -248,6 +248,8 @@ class MainBot:
         query = update.callback_query
         # Also mark a flag to catch token via generic text handler if conversation misses it
         context.user_data['awaiting_bot_token'] = True
+        context.user_data['awaiting_admin_id'] = False
+        context.user_data['awaiting_channel_id'] = False
         await query.edit_message_text(
             """
 🤖 **ساخت ربات جدید**
@@ -289,21 +291,22 @@ class MainBot:
             test_bot = PTBBot(token=bot_token)
             bot_info = await test_bot.get_me()
             
-            # Add bot to database
+            # Temporarily create bot with no admin/channel, then ask user to provide
             bot_id = await db.add_bot(
                 owner_id=user_id,
                 bot_token=bot_token,
                 bot_username=bot_info.username,
-                bot_name=bot_info.first_name
+                bot_name=bot_info.first_name,
+                admin_user_id=None,
+                locked_channel_id=None
             )
-            
+
+            # Ask for admin id
+            context.user_data['new_bot_id'] = bot_id
+            context.user_data['awaiting_admin_id'] = True
             await update.message.reply_text(
-                f"✅ ربات با موفقیت ساخته شد!\n"
-                f"شناسه ربات: {bot_id}\n"
-                f"یوزرنیم: @{bot_info.username}\n\n"
-                f"برای فعال‌سازی، یکی از پلن‌ها رو انتخاب کن.\n"
-                f"/subscribe"
-            )
+                "👤 آیدی عددی ادمین این ربات رو بفرست (از @userinfobot)")
+            return WAITING_FOR_BOT_TOKEN
             
         except Exception as e:
             logger.error(f"Error creating bot: {e}")
@@ -314,6 +317,106 @@ class MainBot:
             return WAITING_FOR_BOT_TOKEN
         
         return ConversationHandler.END
+
+    async def handle_text_messages(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle admin inline inputs for settings updates"""
+        user_id = update.effective_user.id
+        text = (update.message.text or "").strip()
+
+        # Bot creation: collect admin id and channel id
+        if context.user_data.get('awaiting_admin_id'):
+            try:
+                admin_id = int(text)
+                context.user_data['awaiting_admin_id'] = False
+                context.user_data['awaiting_channel_id'] = True
+                await update.message.reply_text("🔒 آیدی کانال قفل (یا @username) رو بفرست. اگه نداری، بنویس: -")
+                context.user_data['pending_admin_id'] = admin_id
+                return
+            except Exception:
+                await update.message.reply_text("❌ آیدی عددی نامعتبره. فقط عدد بفرست.")
+                return
+        if context.user_data.get('awaiting_channel_id'):
+            channel_id = text if text != '-' else None
+            bot_id = context.user_data.get('new_bot_id')
+            admin_id = context.user_data.get('pending_admin_id')
+            if bot_id:
+                await db.update_bot_admin_and_channel(bot_id, admin_user_id=admin_id, locked_channel_id=channel_id)
+            context.user_data['awaiting_channel_id'] = False
+            # Confirm and guide to subscribe
+            await update.message.reply_text(
+                "✅ تنظیمات ربات ثبت شد. برای فعال‌سازی، از منو روی «💳 اشتراک» بزن.")
+            return
+
+        # Existing logic continues...
+        
+        # If user is in bot-token flow, accept Telegram token here as a fallback
+        if context.user_data.get('awaiting_bot_token'):
+            import re
+            if re.match(r'^\d{6,}:[A-Za-z0-9_-]{30,}$', text):
+                # Clear flag and delegate to token handler
+                context.user_data['awaiting_bot_token'] = False
+                await self.handle_bot_token(update, context)
+                return
+
+        if not await db.is_admin(user_id):
+            return
+        # Update prices
+        if context.user_data.get('awaiting_prices'):
+            try:
+                parts = [p.strip() for p in text.split(',') if p.strip()]
+                mapping = {}
+                for p in parts:
+                    if '=' not in p:
+                        raise ValueError('bad part')
+                    k, v = [x.strip() for x in p.split('=', 1)]
+                    mapping[k] = float(v)
+                if '1' in mapping:
+                    Config.PRICE_1_MONTH = mapping['1']
+                    await db.set_setting('PRICE_1_MONTH', str(mapping['1']))
+                if '2' in mapping:
+                    Config.PRICE_2_MONTHS = mapping['2']
+                    await db.set_setting('PRICE_2_MONTHS', str(mapping['2']))
+                if '3' in mapping:
+                    Config.PRICE_3_MONTHS = mapping['3']
+                    await db.set_setting('PRICE_3_MONTHS', str(mapping['3']))
+                context.user_data['awaiting_prices'] = False
+                await update.message.reply_text("✅ قیمت‌ها بروزرسانی شد.")
+                # Refresh admin settings view
+                await self.show_admin_settings(update, context)
+            except Exception:
+                await update.message.reply_text("❌ فرمت اشتباهه. مثال: 1=10.00, 2=18.00, 3=25.00")
+            return
+        # Update payment info
+        if context.user_data.get('awaiting_payment'):
+            try:
+                parts = [p.strip() for p in text.split(',') if p.strip()]
+                kv = {}
+                for p in parts:
+                    if '=' not in p:
+                        raise ValueError('bad part')
+                    k, v = [x.strip() for x in p.split('=', 1)]
+                    # Normalize key to be more tolerant of typos/variants
+                    import re
+                    key_norm = re.sub(r'[^A-Z0-9]', '', k.upper())
+                    if key_norm in { 'CARD', 'CAERD', 'BANKCARD', 'CARDNUMBER', 'CARDNO', 'CARDNUM' }:
+                        kv_key = 'CARD'
+                    elif key_norm in { 'CRYPTO', 'WALLET', 'WALLETADDRESS', 'WALLETADDR', 'CRYPTOWALLET' }:
+                        kv_key = 'CRYPTO'
+                    else:
+                        kv_key = k.upper()
+                    kv[kv_key] = v
+                if 'CARD' in kv:
+                    Config.BANK_CARD_NUMBER = kv['CARD']
+                    await db.set_setting('BANK_CARD_NUMBER', kv['CARD'])
+                if 'CRYPTO' in kv:
+                    Config.CRYPTO_WALLET_ADDRESS = kv['CRYPTO']
+                    await db.set_setting('CRYPTO_WALLET_ADDRESS', kv['CRYPTO'])
+                context.user_data['awaiting_payment'] = False
+                await update.message.reply_text("✅ اطلاعات پرداخت بروزرسانی شد.")
+                # Refresh admin settings view
+                await self.show_admin_settings(update, context)
+            except Exception:
+                await update.message.reply_text("❌ فرمت اشتباهه. مثال: CARD=xxxx, CRYPTO=wallet")
     
     async def show_subscription_plans(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Show subscription plans (Persian casual)"""

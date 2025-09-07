@@ -33,6 +33,8 @@ class Database:
                     bot_token TEXT UNIQUE NOT NULL,
                     bot_username TEXT,
                     bot_name TEXT,
+                    admin_user_id INTEGER,
+                    locked_channel_id TEXT,
                     status TEXT DEFAULT 'pending',
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     last_activity TIMESTAMP,
@@ -40,6 +42,15 @@ class Database:
                     FOREIGN KEY (owner_id) REFERENCES users (user_id)
                 )
             ''')
+            # Backward-compat: add columns if table existed without new cols
+            try:
+                await db.execute("ALTER TABLE bots ADD COLUMN admin_user_id INTEGER")
+            except Exception:
+                pass
+            try:
+                await db.execute("ALTER TABLE bots ADD COLUMN locked_channel_id TEXT")
+            except Exception:
+                pass
             
             # Subscriptions table
             await db.execute('''
@@ -126,13 +137,14 @@ class Database:
         return bool(user and user.get('role') == Config.USER_ROLE_ADMIN)
     
     # Bot operations
-    async def add_bot(self, owner_id: int, bot_token: str, bot_username: str = None, bot_name: str = None) -> int:
+    async def add_bot(self, owner_id: int, bot_token: str, bot_username: str = None, bot_name: str = None,
+                      admin_user_id: int = None, locked_channel_id: str = None) -> int:
         """Add a new bot to the database"""
         async with aiosqlite.connect(self.db_path) as db:
             cursor = await db.execute('''
-                INSERT INTO bots (owner_id, bot_token, bot_username, bot_name)
-                VALUES (?, ?, ?, ?)
-            ''', (owner_id, bot_token, bot_username, bot_name))
+                INSERT INTO bots (owner_id, bot_token, bot_username, bot_name, admin_user_id, locked_channel_id)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ''', (owner_id, bot_token, bot_username, bot_name, admin_user_id, locked_channel_id))
             await db.commit()
             return cursor.lastrowid
     
@@ -178,6 +190,20 @@ class Database:
                 return True
         except Exception as e:
             print(f"Error updating bot status: {e}")
+            return False
+
+    async def update_bot_admin_and_channel(self, bot_id: int, admin_user_id: int = None, locked_channel_id: str = None) -> bool:
+        """Update bot admin and locked channel settings"""
+        try:
+            async with aiosqlite.connect(self.db_path) as db:
+                await db.execute('''
+                    UPDATE bots SET admin_user_id = ?, locked_channel_id = ?
+                    WHERE id = ?
+                ''', (admin_user_id, locked_channel_id, bot_id))
+                await db.commit()
+                return True
+        except Exception as e:
+            print(f"Error updating bot admin/channel: {e}")
             return False
     
     async def get_all_bots(self) -> List[Dict[str, Any]]:
