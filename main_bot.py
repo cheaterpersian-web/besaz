@@ -274,15 +274,20 @@ class MainBot:
         """Start bot creation conversation"""
         query = update.callback_query
         await query.edit_message_text(
-            "🤖 **ساخت ربات جدید**\\n\\n"
-            "برای ساخت ربات لازمه از @BotFather یه توکن بگیری.\\n\\n"
-            "**مراحل کار:**\\n"
-            "1) برو سراغ @BotFather\\n"
-            "2) دستور /newbot رو بزن\\n"
-            "3) اسم و یوزرنیم بده\\n"
-            "4) توکن رو کپی کن\\n"
-            "5) همینجا برام بفرست\\n\\n"
-            "الان توکن رباتتو بفرست:",
+            """
+🤖 **ساخت ربات جدید**
+
+برای ساخت ربات لازمه از @BotFather یه توکن بگیری.
+
+**مراحل کار:**
+1) برو سراغ @BotFather
+2) دستور /newbot رو بزن
+3) اسم و یوزرنیم بده
+4) توکن رو کپی کن
+5) همینجا برام بفرست
+
+الان توکن رباتتو بفرست:
+            """,
             parse_mode=ParseMode.MARKDOWN
         )
         return WAITING_FOR_BOT_TOKEN
@@ -294,16 +299,20 @@ class MainBot:
         user_id = update.effective_user.id
         
         # Validate token format (basic validation)
-        if not bot_token or len(bot_token) < 40:
+        import re
+        token_pattern = r'^\d{6,}:[A-Za-z0-9_-]{30,}$'
+        if not bot_token or not re.match(token_pattern, bot_token):
             await update.message.reply_text(
-                "❌ Invalid bot token format. Please check and try again.\\n"
-                "Send /cancel to cancel this operation."
+                "❌ فرمت توکن درست نیست. دوباره چک کن و بفرست.\n"
+                "برای لغو /cancel رو بزن."
             )
             return WAITING_FOR_BOT_TOKEN
         
         try:
             # Test the token by getting bot info
-            bot_info = await context.bot.get_me()
+            from telegram import Bot as PTBBot
+            test_bot = PTBBot(token=bot_token)
+            bot_info = await test_bot.get_me()
             
             # Add bot to database
             bot_id = await db.add_bot(
@@ -314,18 +323,18 @@ class MainBot:
             )
             
             await update.message.reply_text(
-                f"✅ Bot created successfully!\\n"
-                f"Bot ID: {bot_id}\\n"
-                f"Username: @{bot_info.username}\\n\\n"
-                f"Now you need to subscribe to a plan to activate your bot.\\n"
-                f"Use /subscribe to choose a plan."
+                f"✅ ربات با موفقیت ساخته شد!\n"
+                f"شناسه ربات: {bot_id}\n"
+                f"یوزرنیم: @{bot_info.username}\n\n"
+                f"برای فعال‌سازی، یکی از پلن‌ها رو انتخاب کن.\n"
+                f"/subscribe"
             )
             
         except Exception as e:
             logger.error(f"Error creating bot: {e}")
             await update.message.reply_text(
-                "❌ Error creating bot. Please check your token and try again.\\n"
-                "Send /cancel to cancel this operation."
+                "❌ ساخت ربات ناموفق بود. توکن رو چک کن و دوباره بفرست.\n"
+                "برای لغو /cancel رو بزن."
             )
             return WAITING_FOR_BOT_TOKEN
         
