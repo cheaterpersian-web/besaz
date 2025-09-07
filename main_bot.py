@@ -106,7 +106,6 @@ class MainBot:
             [InlineKeyboardButton("📋 ربات‌های من", callback_data="my_bots")],
             [InlineKeyboardButton("➕ ایجاد ربات جدید", callback_data="create_bot")],
             [InlineKeyboardButton("💳 اشتراک", callback_data="subscribe")],
-            [InlineKeyboardButton("❓ راهنما", callback_data="help")],
             [InlineKeyboardButton("📣 کانال", url="https://t.me/wingsbotcr")]
         ]
         
