@@ -391,10 +391,10 @@ Click on a plan to proceed with payment.
         bots = await db.get_user_bots(user_id)
         
         if not bots:
-            text = "🤖 **Your Bots**\\n\\nYou don't have any bots yet.\\n\\nClick 'Create New Bot' to get started!"
-            keyboard = [[InlineKeyboardButton("➕ Create New Bot", callback_data="create_bot")]]
+            text = "🤖 **ربات‌های شما**\\n\\nهنوز هیچ رباتی ندارید.\\n\\nبرای شروع روی 'ایجاد ربات جدید' کلیک کنید!"
+            keyboard = [[InlineKeyboardButton("➕ ایجاد ربات جدید", callback_data="create_bot")]]
         else:
-            text = "🤖 **Your Bots**\\n\\n"
+            text = "🤖 **ربات‌های شما**\\n\\n"
             keyboard = []
             
             for bot in bots:
@@ -403,27 +403,27 @@ Click on a plan to proceed with payment.
                 is_running = await bot_manager.is_bot_running(bot['id'])
                 
                 status_emoji = "🟢" if is_running and is_active else "🔴"
-                status_text = "Active" if is_running and is_active else "Inactive"
+                status_text = "فعال" if is_running and is_active else "غیرفعال"
                 
                 if subscription:
                     end_date = datetime.fromisoformat(subscription['end_date'])
                     days_left = (end_date - datetime.now()).days
                     text += f"{status_emoji} **@{bot['bot_username']}**\\n"
-                    text += f"Status: {status_text}\\n"
-                    text += f"Plan: {subscription['plan_type']}\\n"
-                    text += f"Days left: {days_left}\\n\\n"
+                    text += f"وضعیت: {status_text}\\n"
+                    text += f"پلن: {subscription['plan_type']}\\n"
+                    text += f"روزهای باقی‌مانده: {days_left}\\n\\n"
                 else:
                     text += f"🔴 **@{bot['bot_username']}**\\n"
-                    text += f"Status: No subscription\\n\\n"
+                    text += f"وضعیت: بدون اشتراک\\n\\n"
                 
                 keyboard.append([InlineKeyboardButton(
-                    f"Manage @{bot['bot_username']}", 
+                    f"مدیریت @{bot['bot_username']}", 
                     callback_data=f"bot_{bot['id']}"
                 )])
             
-            keyboard.append([InlineKeyboardButton("➕ Create New Bot", callback_data="create_bot")])
+            keyboard.append([InlineKeyboardButton("➕ ایجاد ربات جدید", callback_data="create_bot")])
         
-        keyboard.append([InlineKeyboardButton("🔙 Back to Main Menu", callback_data="main_menu")])
+        keyboard.append([InlineKeyboardButton("🔙 بازگشت به منوی اصلی", callback_data="main_menu")])
         reply_markup = InlineKeyboardMarkup(keyboard)
         
         if update.callback_query:
@@ -448,23 +448,23 @@ Click on a plan to proceed with payment.
         active_bots = sum(1 for bot in all_bots if await db.is_subscription_active(bot['id']))
         
         text = f"""
-⚙️ **Admin Panel**
+⚙️ **پنل ادمین**
 
-📊 **Statistics:**
-• Total Bots: {len(all_bots)}
-• Active Bots: {active_bots}
-• Pending Payments: {len(pending_payments)}
+📊 **آمار:**
+• کل ربات‌ها: {len(all_bots)}
+• ربات‌های فعال: {active_bots}
+• پرداخت‌های در انتظار: {len(pending_payments)}
 
-**Admin Actions:**
+**عملیات ادمین:**
         """
         
         keyboard = [
-            [InlineKeyboardButton("👥 Manage Users", callback_data="admin_users")],
-            [InlineKeyboardButton("💳 Pending Payments", callback_data="admin_payments")],
-            [InlineKeyboardButton("🤖 All Bots", callback_data="admin_bots")],
-            [InlineKeyboardButton("⚙️ Settings", callback_data="admin_settings")],
-            [InlineKeyboardButton("📢 Broadcast", callback_data="admin_broadcast")],
-            [InlineKeyboardButton("🔙 Back to Main Menu", callback_data="main_menu")]
+            [InlineKeyboardButton("👥 مدیریت کاربران", callback_data="admin_users")],
+            [InlineKeyboardButton("💳 پرداخت‌های در انتظار", callback_data="admin_payments")],
+            [InlineKeyboardButton("🤖 همه ربات‌ها", callback_data="admin_bots")],
+            [InlineKeyboardButton("⚙️ تنظیمات", callback_data="admin_settings")],
+            [InlineKeyboardButton("📢 ارسال پیام", callback_data="admin_broadcast")],
+            [InlineKeyboardButton("🔙 بازگشت به منوی اصلی", callback_data="main_menu")]
         ]
         
         reply_markup = InlineKeyboardMarkup(keyboard)
@@ -547,36 +547,36 @@ Click on a plan to proceed with payment.
         subscription = await db.get_bot_subscription(bot_id)
         
         text = f"""
-🤖 **Bot Management: @{bot['bot_username']}**
+🤖 **مدیریت ربات: @{bot['bot_username']}**
 
-**Status:** {status['status'].title()}
-**Running:** {'✅ Yes' if status['is_running'] else '❌ No'}
-**Subscription:** {'✅ Active' if status['subscription_active'] else '❌ Inactive'}
+**وضعیت:** {status['status'].title()}
+**در حال اجرا:** {'✅ بله' if status['is_running'] else '❌ خیر'}
+**اشتراک:** {'✅ فعال' if status['subscription_active'] else '❌ غیرفعال'}
 
-**Bot Details:**
-• Created: {status['created_at']}
-• Last Activity: {status['last_activity'] or 'Never'}
+**جزئیات ربات:**
+• ایجاد شده: {status['created_at']}
+• آخرین فعالیت: {status['last_activity'] or 'هرگز'}
         """
         
         if subscription:
             end_date = datetime.fromisoformat(subscription['end_date'])
             days_left = (end_date - datetime.now()).days
-            text += f"• Plan: {subscription['plan_type']}\\n"
-            text += f"• Expires: {end_date.strftime('%Y-%m-%d')}\\n"
-            text += f"• Days Left: {days_left}\\n"
+            text += f"• پلن: {subscription['plan_type']}\\n"
+            text += f"• انقضا: {end_date.strftime('%Y-%m-%d')}\\n"
+            text += f"• روزهای باقی‌مانده: {days_left}\\n"
         
         keyboard = []
         
         if status['subscription_active']:
             if status['is_running']:
-                keyboard.append([InlineKeyboardButton("⏹️ Stop Bot", callback_data=f"stop_bot_{bot_id}")])
+                keyboard.append([InlineKeyboardButton("⏹️ توقف ربات", callback_data=f"stop_bot_{bot_id}")])
             else:
-                keyboard.append([InlineKeyboardButton("▶️ Start Bot", callback_data=f"start_bot_{bot_id}")])
-            keyboard.append([InlineKeyboardButton("🔄 Restart Bot", callback_data=f"restart_bot_{bot_id}")])
+                keyboard.append([InlineKeyboardButton("▶️ شروع ربات", callback_data=f"start_bot_{bot_id}")])
+            keyboard.append([InlineKeyboardButton("🔄 راه‌اندازی مجدد ربات", callback_data=f"restart_bot_{bot_id}")])
         else:
-            keyboard.append([InlineKeyboardButton("💳 Subscribe", callback_data="subscribe")])
+            keyboard.append([InlineKeyboardButton("💳 اشتراک", callback_data="subscribe")])
         
-        keyboard.append([InlineKeyboardButton("🔙 Back to My Bots", callback_data="my_bots")])
+        keyboard.append([InlineKeyboardButton("🔙 بازگشت به ربات‌های من", callback_data="my_bots")])
         reply_markup = InlineKeyboardMarkup(keyboard)
         
         await update.callback_query.edit_message_text(
@@ -609,26 +609,26 @@ Click on a plan to proceed with payment.
         payments = await db.get_pending_payments()
         
         if not payments:
-            text = "💳 **Pending Payments**\\n\\nNo pending payments found."
-            keyboard = [[InlineKeyboardButton("🔙 Back to Admin Panel", callback_data="admin_panel")]]
+            text = "💳 **پرداخت‌های در انتظار**\\n\\nهیچ پرداخت در انتظاری یافت نشد."
+            keyboard = [[InlineKeyboardButton("🔙 بازگشت به پنل ادمین", callback_data="admin_panel")]]
         else:
-            text = "💳 **Pending Payments**\\n\\n"
+            text = "💳 **پرداخت‌های در انتظار**\\n\\n"
             keyboard = []
             
             for payment in payments:
-                text += f"**Payment #{payment['id']}**\\n"
-                text += f"User: @{payment['username'] or payment['first_name']}\\n"
-                text += f"Amount: ${payment['amount']:.2f}\\n"
-                text += f"Plan: {payment['plan_type']}\\n"
-                text += f"Method: {payment['payment_method']}\\n"
-                text += f"Date: {payment['created_at']}\\n\\n"
+                text += f"**پرداخت #{payment['id']}**\\n"
+                text += f"کاربر: @{payment['username'] or payment['first_name']}\\n"
+                text += f"مبلغ: ${payment['amount']:.2f}\\n"
+                text += f"پلن: {payment['plan_type']}\\n"
+                text += f"روش: {payment['payment_method']}\\n"
+                text += f"تاریخ: {payment['created_at']}\\n\\n"
                 
                 keyboard.append([
-                    InlineKeyboardButton(f"✅ Approve #{payment['id']}", callback_data=f"approve_payment_{payment['id']}"),
-                    InlineKeyboardButton(f"❌ Reject #{payment['id']}", callback_data=f"reject_payment_{payment['id']}")
+                    InlineKeyboardButton(f"✅ تایید #{payment['id']}", callback_data=f"approve_payment_{payment['id']}"),
+                    InlineKeyboardButton(f"❌ رد #{payment['id']}", callback_data=f"reject_payment_{payment['id']}")
                 ])
             
-            keyboard.append([InlineKeyboardButton("🔙 Back to Admin Panel", callback_data="admin_panel")])
+            keyboard.append([InlineKeyboardButton("🔙 بازگشت به پنل ادمین", callback_data="admin_panel")])
         
         reply_markup = InlineKeyboardMarkup(keyboard)
         
@@ -643,9 +643,9 @@ Click on a plan to proceed with payment.
         bots = await db.get_all_bots()
         
         if not bots:
-            text = "🤖 **All Bots**\\n\\nNo bots found."
+            text = "🤖 **همه ربات‌ها**\\n\\nهیچ رباتی یافت نشد."
         else:
-            text = "🤖 **All Bots**\\n\\n"
+            text = "🤖 **همه ربات‌ها**\\n\\n"
             
             for bot in bots:
                 subscription = await db.get_bot_subscription(bot['id'])
