@@ -44,7 +44,7 @@ class BotManager:
             return False
     
     async def create_bot_template(self, bot_dir: str):
-        """Create a basic bot template"""
+        """Create a basic bot template (python-telegram-bot v21)"""
         bot_code = '''import asyncio
 import logging
 from telegram import Update
@@ -69,47 +69,27 @@ class BotInstance:
         self.setup_handlers()
     
     def setup_handlers(self):
-        """Setup command handlers"""
         self.application.add_handler(CommandHandler("start", self.start_command))
         self.application.add_handler(CommandHandler("help", self.help_command))
         self.application.add_handler(CommandHandler("status", self.status_command))
     
     async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle /start command"""
-        await update.message.reply_text(
-            "🤖 ربات فعاله!\\nبرای دیدن دستورات /help رو بزن."
-        )
+        await update.message.reply_text("🤖 ربات فعاله!\nبرای دیدن دستورات /help رو بزن.")
     
     async def help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle /help command"""
-        help_text = """
-🤖 دستورات ربات:
-/start - شروع
-/help - همین راهنما
-/status - وضعیت ربات
-        """
+        help_text = "🤖 دستورات ربات:\n/start - شروع\n/help - همین راهنما\n/status - وضعیت ربات"
         await update.message.reply_text(help_text)
     
     async def status_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle /status command"""
         await update.message.reply_text("✅ ربات فعاله و سالم کار می‌کنه!")
     
     async def run(self):
-        """Run the bot"""
         try:
-            await self.application.initialize()
-            await self.application.start()
-            await self.application.updater.start_polling()
-            
-            # Keep the bot running
-            await asyncio.Event().wait()
+            await self.application.run_polling()
         except Exception as e:
             logger.error(f"Error running bot: {e}")
-        finally:
-            await self.application.stop()
 
 async def main():
-    """Main function"""
     token = os.getenv('BOT_TOKEN')
     if not token:
         print("Error: BOT_TOKEN environment variable not set")
@@ -122,13 +102,13 @@ if __name__ == '__main__':
     asyncio.run(main())
 '''
         
-        # Write bot.py
+        # Write bot.py (overwrite if exists to ensure a working entrypoint)
         with open(os.path.join(bot_dir, "bot.py"), "w") as f:
             f.write(bot_code)
         
-        # Create requirements.txt
-        requirements = '''python-telegram-bot==20.7
-python-dotenv==1.0.0
+        # Create minimal requirements.txt aligned with PTB v21
+        requirements = '''python-telegram-bot==21.7
+python-dotenv==1.0.1
 '''
         with open(os.path.join(bot_dir, "requirements.txt"), "w") as f:
             f.write(requirements)
@@ -148,6 +128,9 @@ python-dotenv==1.0.0
             if not os.path.exists(bot_dir):
                 if not await self.clone_bot_template(bot_id):
                     return False
+            
+            # Ensure a minimal, working entrypoint and requirements are present/updated
+            await self.create_bot_template(bot_dir)
             
             # Create .env file with bot token
             env_file = os.path.join(bot_dir, ".env")
