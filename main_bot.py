@@ -306,7 +306,7 @@ class MainBot:
             context.user_data['awaiting_admin_id'] = True
             await update.message.reply_text(
                 "👤 آیدی عددی ادمین این ربات رو بفرست (از @userinfobot)")
-            return WAITING_FOR_BOT_TOKEN
+            return ConversationHandler.END
             
         except Exception as e:
             logger.error(f"Error creating bot: {e}")
