@@ -87,13 +87,19 @@ class Database:
             await db.commit()
     
     # User operations
-    async def add_user(self, user_id: int, username: str = None, first_name: str = None, last_name: str = None, role: str = "user") -> bool:
-        """Add a new user to the database"""
+    async def add_user(self, user_id: int, username: str = None, first_name: str = None, last_name: str = None, role: str = None) -> bool:
+        """Add or update a user without overwriting existing role.
+        If role is provided on first insert it will be set; on updates, role is preserved.
+        """
         try:
             async with aiosqlite.connect(self.db_path) as db:
                 await db.execute('''
-                    INSERT OR REPLACE INTO users (user_id, username, first_name, last_name, role)
-                    VALUES (?, ?, ?, ?, ?)
+                    INSERT INTO users (user_id, username, first_name, last_name, role)
+                    VALUES (?, ?, ?, ?, COALESCE(?, 'user'))
+                    ON CONFLICT(user_id) DO UPDATE SET
+                        username=excluded.username,
+                        first_name=excluded.first_name,
+                        last_name=excluded.last_name
                 ''', (user_id, username, first_name, last_name, role))
                 await db.commit()
                 return True
@@ -110,9 +116,14 @@ class Database:
                 return dict(row) if row else None
     
     async def is_admin(self, user_id: int) -> bool:
-        """Check if user is admin"""
+        """Check if user is admin. Falls back to configured ADMIN_USER_ID."""
+        try:
+            if Config.ADMIN_USER_ID and int(user_id) == int(Config.ADMIN_USER_ID):
+                return True
+        except Exception:
+            pass
         user = await self.get_user(user_id)
-        return user and user['role'] == Config.USER_ROLE_ADMIN
+        return bool(user and user.get('role') == Config.USER_ROLE_ADMIN)
     
     # Bot operations
     async def add_bot(self, owner_id: int, bot_token: str, bot_username: str = None, bot_name: str = None) -> int:
