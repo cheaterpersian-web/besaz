@@ -118,7 +118,7 @@ class PaymentHandler:
     
     async def show_payment_instructions(self, update: Update, context: ContextTypes.DEFAULT_TYPE,
                                       payment_method: str, plan_type: str, bot_id: int):
-        """Show payment instructions (Persian)"""
+        """Show payment instructions (HTML)"""
         query = update.callback_query
         user_id = query.from_user.id
         
@@ -134,50 +134,38 @@ class PaymentHandler:
             await query.edit_message_text("❌ Bot not found or access denied.")
             return
         
+        from html import escape
+        safe_bot = escape(str(bot['bot_username']))
+        safe_user = escape(str(query.from_user.username or ""))
+        bank = escape(str(Config.BANK_CARD_NUMBER or "-"))
+        wallet = escape(str(Config.CRYPTO_WALLET_ADDRESS or "-"))
+
         if payment_method == "bank":
-            text = f"""
-🏦 **پرداخت کارت‌به‌کارت**
-
-🤖 **ربات:** @{bot['bot_username']}
-💰 **مبلغ:** ${plan_details['price']:.2f}
-⏰ **مدت:** {plan_details['duration']} روز
-
-**راهنمای پرداخت:**
-1) مبلغ {plan_details['price']:.2f}$ رو به کارت زیر واریز کن:
-   `{Config.BANK_CARD_NUMBER}`
-
-2) از رسید پرداخت اسکرین‌شات بگیر
-
-3) همینجا عکس رسید رو بفرست
-
-4) منتظر تایید ادمین بمون (معمولاً تا ۲۴ ساعت)
-
-نکته: اگه شد، یوزرنیمت (@{query.from_user.username}) رو تو توضیحات پرداخت بنویس.
-
-وقتی واریزی رو انجام دادی، دکمه «پرداخت کردم» رو بزن.
-            """
+            text = (
+                f"<b>🏦 پرداخت کارت‌به‌کارت</b>\n\n"
+                f"🤖 <b>ربات:</b> @{safe_bot}\n"
+                f"💰 <b>مبلغ:</b> ${plan_details['price']:.2f}\n"
+                f"⏰ <b>مدت:</b> {plan_details['duration']} روز\n\n"
+                f"<b>راهنمای پرداخت:</b>\n"
+                f"1) مبلغ {plan_details['price']:.2f}$ رو به کارت زیر واریز کن:\n   <code>{bank}</code>\n\n"
+                f"2) از رسید پرداخت اسکرین‌شات بگیر\n\n"
+                f"3) همینجا عکس رسید رو بفرست\n\n"
+                f"4) منتظر تایید ادمین بمون (معمولاً تا ۲۴ ساعت)\n\n"
+                f"نکته: اگه شد، یوزرنیمت (@{safe_user}) رو تو توضیحات پرداخت بنویس."
+            )
         else:  # crypto
-            text = f"""
-₿ **پرداخت ارز دیجیتال**
-
-🤖 **ربات:** @{bot['bot_username']}
-💰 **مبلغ:** ${plan_details['price']:.2f}
-⏰ **مدت:** {plan_details['duration']} روز
-
-**راهنمای پرداخت:**
-1) معادل {plan_details['price']:.2f}$ ارز دیجیتال به این آدرس بفرست:
-   `{Config.CRYPTO_WALLET_ADDRESS}`
-
-2) شناسه/هش تراکنش رو کپی کن
-
-3) همینجا شناسه تراکنش رو بفرست
-
-4) منتظر تایید ادمین بمون (معمولاً تا ۲۴ ساعت)
-
-نکته: مبلغ دقیق رو بفرست که مشکلی پیش نیاد.
-
-وقتی واریزی رو انجام دادی، دکمه «پرداخت کردم» رو بزن.
-            """
+            text = (
+                f"<b>₿ پرداخت ارز دیجیتال</b>\n\n"
+                f"🤖 <b>ربات:</b> @{safe_bot}\n"
+                f"💰 <b>مبلغ:</b> ${plan_details['price']:.2f}\n"
+                f"⏰ <b>مدت:</b> {plan_details['duration']} روز\n\n"
+                f"<b>راهنمای پرداخت:</b>\n"
+                f"1) معادل {plan_details['price']:.2f}$ ارز دیجیتال به این آدرس بفرست:\n   <code>{wallet}</code>\n\n"
+                f"2) شناسه/هش تراکنش رو کپی کن\n\n"
+                f"3) همینجا شناسه تراکنش رو بفرست\n\n"
+                f"4) منتظر تایید ادمین بمون (معمولاً تا ۲۴ ساعت)\n\n"
+                f"نکته: مبلغ دقیق رو بفرست که مشکلی پیش نیاد."
+            )
         
         keyboard = [
             [InlineKeyboardButton("✅ پرداخت کردم", callback_data=f"submit_proof_{payment_method}_{plan_type}_{bot_id}")],
@@ -188,7 +176,7 @@ class PaymentHandler:
         
         await query.edit_message_text(
             text,
-            parse_mode=ParseMode.MARKDOWN,
+            parse_mode=ParseMode.HTML,
             reply_markup=reply_markup
         )
     
