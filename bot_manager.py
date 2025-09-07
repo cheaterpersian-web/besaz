@@ -154,16 +154,25 @@ python-dotenv==1.0.0
             with open(env_file, "w") as f:
                 f.write(f"BOT_TOKEN={bot_token}\\n")
             
-            # Determine python path: use bot-specific venv if exists
-            venv_python = os.path.join(bot_dir, 'venv', 'bin', 'python')
-            python_exec = venv_python if os.path.exists(venv_python) else self.python_path
+            # Always use a per-bot virtual environment (PEP 668 safe)
+            venv_dir = os.path.join(bot_dir, 'venv')
+            venv_python = os.path.join(venv_dir, 'bin', 'python')
+            if not os.path.exists(venv_python):
+                # Create venv
+                subprocess.run([self.python_path, "-m", "venv", "venv"], cwd=bot_dir, check=True)
+            python_exec = venv_python
 
-            # Install dependencies
+            # Ensure pip is available and up-to-date inside venv
+            try:
+                subprocess.run([python_exec, "-m", "ensurepip", "--upgrade"], cwd=bot_dir, check=False)
+            except Exception:
+                pass
+            subprocess.run([python_exec, "-m", "pip", "install", "--upgrade", "pip", "setuptools", "wheel"], cwd=bot_dir, check=True)
+
+            # Install dependencies inside venv
             requirements_file = os.path.join(bot_dir, "requirements.txt")
             if os.path.exists(requirements_file):
-                subprocess.run([
-                    python_exec, "-m", "pip", "install", "-r", requirements_file
-                ], cwd=bot_dir, check=True)
+                subprocess.run([python_exec, "-m", "pip", "install", "-r", requirements_file, "--no-cache-dir"], cwd=bot_dir, check=True)
             
             # Start the bot process
             process = subprocess.Popen([

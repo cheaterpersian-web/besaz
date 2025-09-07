@@ -347,8 +347,9 @@ class PaymentHandler:
             # Add/extend subscription
             await db.add_subscription(payment['bot_id'], payment['plan_type'], plan_details['duration'])
             # Deploy bot if token available
+            deploy_ok = False
             if bot and bot.get('bot_token'):
-                await bot_manager.deploy_bot(payment['bot_id'], bot['bot_token'])
+                deploy_ok = await bot_manager.deploy_bot(payment['bot_id'], bot['bot_token'])
             # Notify user
             try:
                 from telegram import Bot as PTBBot
@@ -357,8 +358,8 @@ class PaymentHandler:
                 notify_bot = PTBBot(token=Config.MAIN_BOT_TOKEN)
                 await notify_bot.send_message(chat_id=int(payment['user_id']), text=(
                     "✅ پرداخت شما تایید شد!\n\n"
-                    f"ربات شما اکنون فعال است.\n"
-                    f"پلن: {plan_details['name']} ({plan_details['duration']} روز)"
+                    f"پلن: {plan_details['name']} ({plan_details['duration']} روز)\n"
+                    + ("🤖 ربات شما با موفقیت اجرا شد." if deploy_ok else "ℹ️ اشتراک فعال شد. اجرای ربات به‌زودی انجام می‌شود.")
                 ))
             except Exception:
                 pass
@@ -367,7 +368,9 @@ class PaymentHandler:
                 if Config.ADMIN_USER_ID:
                     from telegram import Bot as PTBBot
                     notify_bot = PTBBot(token=Config.MAIN_BOT_TOKEN)
-                    await notify_bot.send_message(chat_id=int(Config.ADMIN_USER_ID), text=f"✅ پرداخت #{payment_id} تایید شد.")
+                    await notify_bot.send_message(chat_id=int(Config.ADMIN_USER_ID), text=(
+                        f"✅ پرداخت #{payment_id} تایید شد. " + ("(Deploy OK)" if deploy_ok else "(Deploy pending)")
+                    ))
             except Exception:
                 pass
             logger.info(f"Payment {payment_id} approved by admin {admin_id}")
