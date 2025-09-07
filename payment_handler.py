@@ -191,14 +191,17 @@ class PaymentHandler:
         context.user_data['bot_id'] = bot_id
         
         await query.edit_message_text(
-            "📸 **ارسال رسید پرداخت**\\n\\n"
-            "لطفاً مدرک پرداختتو بفرست:\\n"
-            "• اسکرین‌شات کارت‌به‌کارت (برای کارت‌به‌کارت)\\n"
-            "• شناسه/هش تراکنش (برای ارز دیجیتال)\\n\\n"
-            "برای لغو، /cancel رو بزن."
+            """
+📸 **ارسال رسید پرداخت**
+
+لطفاً مدرک پرداختتو بفرست:
+• اسکرین‌شات کارت‌به‌کارت (برای کارت‌به‌کارت)
+• شناسه/هش تراکنش (برای ارز دیجیتال)
+
+برای لغو، /cancel رو بزن.
+            """,
+            parse_mode=ParseMode.MARKDOWN
         )
-        
-        return WAITING_FOR_PAYMENT_PROOF
     
     async def handle_payment_proof(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle payment proof submission"""
@@ -246,7 +249,7 @@ class PaymentHandler:
         )
         
         # Notify admin about new payment
-        await self.notify_admin_new_payment(payment_id, user_id, bot, plan_details, payment_method)
+        await self.notify_admin_new_payment(context, payment_id, user_id, bot, plan_details, payment_method)
         
         await update.message.reply_text(
             f"✅ رسید پرداخت با موفقیت ثبت شد!\\n\\ن"
@@ -259,16 +262,22 @@ class PaymentHandler:
         
         return ConversationHandler.END
     
-    async def notify_admin_new_payment(self, payment_id: int, user_id: int, bot: Dict[str, Any], 
+    async def notify_admin_new_payment(self, context: ContextTypes.DEFAULT_TYPE, payment_id: int, user_id: int, bot: Dict[str, Any], 
                                      plan_details: Dict[str, Any], payment_method: str):
         """Notify admin about new payment"""
         try:
-            # In a real implementation, you would send a message to the admin here
             logger.info(f"New payment {payment_id} from user {user_id} for bot {bot['id']}")
-            
-            # You could use the main bot to send a message to the admin
-            # await main_bot.send_admin_notification(f"New payment {payment_id} pending approval")
-            
+            if Config.ADMIN_USER_ID:
+                text = (
+                    f"📥 پرداخت جدید\n"
+                    f"شناسه پرداخت: {payment_id}\n"
+                    f"کاربر: {user_id}\n"
+                    f"ربات: @{bot.get('bot_username','-')}\n"
+                    f"پلن: {plan_details.get('name','-')} ({plan_details.get('duration','-')} روز)\n"
+                    f"مبلغ: ${plan_details.get('price',0):.2f}\n"
+                    f"روش: {'کارت‌به‌کارت' if payment_method=='bank' else 'ارز دیجیتال'}"
+                )
+                await context.bot.send_message(chat_id=int(Config.ADMIN_USER_ID), text=text)
         except Exception as e:
             logger.error(f"Error notifying admin about payment {payment_id}: {e}")
     
