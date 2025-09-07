@@ -31,7 +31,6 @@ class MainBot:
         
         # Command handlers
         self.application.add_handler(CommandHandler("start", self.start_command))
-        self.application.add_handler(CommandHandler("help", self.help_command))
         self.application.add_handler(CommandHandler("admin", self.admin_command))
         self.application.add_handler(CommandHandler("mybots", self.my_bots_command))
         self.application.add_handler(CommandHandler("subscribe", self.subscribe_command))
@@ -121,53 +120,8 @@ class MainBot:
         )
     
     async def help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle /help command"""
-        help_text = """
-🤖 **سیستم مدیریت ربات - راهنما**
-
-**دستورات کاربر:**
-/start - شروع ربات و نمایش منوی اصلی
-/mybots - مشاهده ربات‌های شما و وضعیت آن‌ها
-/subscribe - اشتراک در یک پلن
-/payments - مشاهده تاریخچه پرداخت‌ها
-/help - نمایش این پیام راهنما
-
-**دستورات ادمین:**
-/setup - راه‌اندازی اولیه ربات (فقط ادمین)
-/admin - پنل ادمین
-/users - مدیریت کاربران
-/broadcast - ارسال پیام به همه کاربران
-
-**نحوه ایجاد ربات:**
-1. توکن ربات را از @BotFather دریافت کنید
-2. از دکمه "ایجاد ربات جدید" استفاده کنید
-3. توکن ربات خود را ارائه دهید
-4. در یک پلن اشتراک شوید
-5. ربات شما به طور خودکار راه‌اندازی می‌شود!
-
-**پلن‌های اشتراک:**
-• 1 ماه: ${:.2f}
-• 2 ماه: ${:.2f} (صرفه‌جویی ${:.2f}!)
-• 3 ماه: ${:.2f} (صرفه‌جویی ${:.2f}!)
-
-**روش‌های پرداخت:**
-• انتقال بانکی (کارت به کارت)
-• ارز دیجیتال
-
-نیاز به کمک دارید؟ با ادمین تماس بگیرید!
-        """.format(
-            Config.PRICE_1_MONTH,
-            Config.PRICE_2_MONTHS,
-            Config.PRICE_1_MONTH * 2 - Config.PRICE_2_MONTHS,
-            Config.PRICE_3_MONTHS,
-            Config.PRICE_1_MONTH * 3 - Config.PRICE_3_MONTHS
-        )
-        
-        # Check if it's a callback query or message
-        if update.callback_query:
-            await update.callback_query.edit_message_text(help_text, parse_mode=ParseMode.MARKDOWN)
-        else:
-            await update.message.reply_text(help_text, parse_mode=ParseMode.MARKDOWN)
+        """Help disabled."""
+        return
     
     @handle_telegram_errors
     async def admin_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
