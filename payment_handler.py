@@ -206,6 +206,7 @@ class PaymentHandler:
     async def handle_payment_proof(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle payment proof submission"""
         user_id = update.effective_user.id
+        username = update.effective_user.username or ""
         
         # Get payment info from context
         payment_method = context.user_data.get('payment_method')
@@ -231,11 +232,13 @@ class PaymentHandler:
         # Handle different proof types
         proof_text = ""
         if update.message.photo:
-            proof_text = f"Photo proof from user {user_id}"
+            proof_text = f"photo:{update.message.photo[-1].file_id}"
+        elif getattr(update.message, 'document', None):
+            proof_text = f"document:{update.message.document.file_id}"
         elif update.message.text:
             proof_text = update.message.text
         else:
-            await update.message.reply_text("❌ لطفاً عکس رسید یا متن شناسه تراکنش رو بفرست.")
+            await update.message.reply_text("❌ لطفاً عکس رسید، فایل، یا متن شناسه تراکنش رو بفرست.")
             return "WAITING_FOR_PAYMENT_PROOF"
         
         # Add payment to database
@@ -248,17 +251,28 @@ class PaymentHandler:
             payment_proof=proof_text
         )
         
-        # Notify admin about new payment
-        await self.notify_admin_new_payment(context, payment_id, user_id, bot, plan_details, payment_method)
-        
-        await update.message.reply_text(
-            f"✅ رسید پرداخت با موفقیت ثبت شد!\\n\\ن"
-            f"شناسه پرداخت: {payment_id}\\n"
-            f"مبلغ: ${plan_details['price']:.2f}\\n"
-            f"روش: {('کارت‌به‌کارت' if payment_method=='bank' else 'ارز دیجیتال')}\\n\\n"
-            f"پرداختت رفته برای تایید ادمین.\\n"
-            f"بهت خبر می‌دیم نتیجه چی شد."
+        # Forward proof and details to admin (if configured)
+        await self.send_admin_payment_proof(
+            context=context,
+            payment_id=payment_id,
+            user_id=user_id,
+            username=username,
+            bot=bot,
+            plan_details=plan_details,
+            payment_method=payment_method,
+            message=update.message,
         )
+
+        # Acknowledge to user
+        ack_text = (
+            "✅ رسید پرداخت با موفقیت ثبت شد!\n\n"
+            f"شناسه پرداخت: {payment_id}\n"
+            f"مبلغ: ${plan_details['price']:.2f}\n"
+            f"روش: {('کارت‌به‌کارت' if payment_method=='bank' else 'ارز دیجیتال')}\n\n"
+            "پرداختت رفته برای تایید ادمین.\n"
+            "بهت خبر می‌دیم نتیجه چی شد."
+        )
+        await update.message.reply_text(ack_text)
         
         return ConversationHandler.END
     
@@ -280,6 +294,43 @@ class PaymentHandler:
                 await context.bot.send_message(chat_id=int(Config.ADMIN_USER_ID), text=text)
         except Exception as e:
             logger.error(f"Error notifying admin about payment {payment_id}: {e}")
+
+    async def send_admin_payment_proof(self, context: ContextTypes.DEFAULT_TYPE, payment_id: int, user_id: int, username: str,
+                                      bot: Dict[str, Any], plan_details: Dict[str, Any], payment_method: str, message):
+        """Send payment details and proof to admin (media-aware)."""
+        try:
+            if not Config.ADMIN_USER_ID:
+                return
+            from html import escape
+            admin_id = int(Config.ADMIN_USER_ID)
+            user_display = f"@{username}" if username else f"User {user_id}"
+            safe_bot = escape(str(bot.get('bot_username', '-')))
+            safe_user = escape(str(user_display))
+            caption = (
+                f"<b>📥 پرداخت جدید</b>\n\n"
+                f"<b>شناسه پرداخت:</b> <code>#{payment_id}</code>\n"
+                f"<b>کاربر:</b> {safe_user} (<code>{user_id}</code>)\n"
+                f"<b>ربات:</b> @{safe_bot}\n"
+                f"<b>پلن:</b> {escape(str(plan_details.get('name','-')))} ({plan_details.get('duration','-')} روز)\n"
+                f"<b>مبلغ:</b> ${plan_details.get('price',0):.2f}\n"
+                f"<b>روش:</b> {'کارت‌به‌کارت' if payment_method=='bank' else 'ارز دیجیتال'}"
+            )
+
+            # Send media with caption if available, otherwise send text
+            if message.photo:
+                file_id = message.photo[-1].file_id
+                await context.bot.send_photo(chat_id=admin_id, photo=file_id, caption=caption, parse_mode=ParseMode.HTML)
+            elif getattr(message, 'document', None):
+                file_id = message.document.file_id
+                await context.bot.send_document(chat_id=admin_id, document=file_id, caption=caption, parse_mode=ParseMode.HTML)
+            elif message.text:
+                extra = f"\n\n<b>🧾 مدرک/شناسه:</b>\n<code>{escape(message.text)}</code>"
+                await context.bot.send_message(chat_id=admin_id, text=caption + extra, parse_mode=ParseMode.HTML)
+            else:
+                # Fallback to text-only notification
+                await context.bot.send_message(chat_id=admin_id, text=caption, parse_mode=ParseMode.HTML)
+        except Exception as e:
+            logger.error(f"Error sending admin payment proof for {payment_id}: {e}")
     
     async def approve_payment(self, payment_id: int, admin_id: int) -> bool:
         """Approve a payment and activate subscription"""
