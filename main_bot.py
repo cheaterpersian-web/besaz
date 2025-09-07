@@ -539,6 +539,7 @@ class MainBot:
     
     async def handle_payment_proof(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle payment proof submission"""
+        logger.info("[PAYMENT] handle_payment_proof triggered")
         result = await payment_handler.handle_payment_proof(update, context)
         if result == "WAITING_FOR_PAYMENT_PROOF":
             return WAITING_FOR_PAYMENT_PROOF
@@ -552,6 +553,7 @@ class MainBot:
             payment_method = parts[2]
             bot_id = int(parts[-1])
             plan_type = "_".join(parts[3:-1])
+            logger.info(f"[PAYMENT] submit_proof clicked: method={payment_method} plan={plan_type} bot_id={bot_id}")
             await payment_handler.start_payment_proof_submission(update, context, payment_method, plan_type, bot_id)
             return WAITING_FOR_PAYMENT_PROOF
     
