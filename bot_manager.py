@@ -124,13 +124,30 @@ python-dotenv==1.0.1
         try:
             bot_dir = os.path.join(self.deployment_dir, f"bot_{bot_id}")
             
-            # Clone template if not exists
+            # Ensure repo present: if BOT_REPO_URL is set but directory is missing or not a git repo, reclone
+            need_clone = False
             if not os.path.exists(bot_dir):
+                need_clone = True
+            else:
+                git_dir = os.path.join(bot_dir, '.git')
+                if Config.BOT_REPO_URL and not os.path.exists(git_dir):
+                    # Existing non-git directory (likely local template). Re-clone from repo.
+                    shutil.rmtree(bot_dir, ignore_errors=True)
+                    need_clone = True
+            if need_clone:
                 if not await self.clone_bot_template(bot_id):
                     return False
             
-            # Ensure a minimal, working entrypoint and requirements are present/updated
-            await self.create_bot_template(bot_dir)
+            # Detect entrypoint. If missing, generate a minimal template.
+            candidate_files = ["bot.py", "main.py", "app.py"]
+            entrypoint = None
+            for fname in candidate_files:
+                if os.path.exists(os.path.join(bot_dir, fname)):
+                    entrypoint = fname
+                    break
+            if entrypoint is None:
+                await self.create_bot_template(bot_dir)
+                entrypoint = "bot.py"
             
             # Create .env file with bot token
             env_file = os.path.join(bot_dir, ".env")
@@ -157,10 +174,26 @@ python-dotenv==1.0.1
             if os.path.exists(requirements_file):
                 subprocess.run([python_exec, "-m", "pip", "install", "-r", requirements_file, "--no-cache-dir"], cwd=bot_dir, check=True)
             
-            # Start the bot process
-            process = subprocess.Popen([
-                python_exec, "bot.py"
-            ], cwd=bot_dir, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            # Start the bot process (log to files to avoid pipe blocking)
+            logs_dir = os.path.join(bot_dir, 'logs')
+            os.makedirs(logs_dir, exist_ok=True)
+            stdout_path = os.path.join(logs_dir, 'stdout.log')
+            stderr_path = os.path.join(logs_dir, 'stderr.log')
+            stdout_file = open(stdout_path, 'ab')
+            stderr_file = open(stderr_path, 'ab')
+
+            # Pass BOT_TOKEN via environment to support repos that read env directly
+            env = os.environ.copy()
+            env['BOT_TOKEN'] = bot_token
+            env['PYTHONUNBUFFERED'] = '1'
+
+            process = subprocess.Popen(
+                [python_exec, entrypoint],
+                cwd=bot_dir,
+                stdout=stdout_file,
+                stderr=stderr_file,
+                env=env
+            )
             
             # Store process info
             self.running_bots[bot_id] = {
