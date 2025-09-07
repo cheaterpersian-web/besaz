@@ -69,8 +69,8 @@ class MainBot:
         # Callback query handlers (catch-all) – add AFTER conversations
         self.application.add_handler(CallbackQueryHandler(self.handle_callback))
 
-        # Generic text handler to capture admin inline edits
-        self.application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_text_messages))
+        # Generic text handler to capture admin inline edits and token fallback (non-blocking)
+        self.application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_text_messages, block=False))
     
     @handle_telegram_errors
     async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
