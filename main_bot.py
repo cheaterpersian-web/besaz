@@ -58,6 +58,7 @@ class MainBot:
                 WAITING_FOR_BOT_TOKEN: [MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_bot_token)],
             },
             fallbacks=[CommandHandler("cancel", self.cancel_conversation)],
+            per_message=False,
         )
         self.application.add_handler(bot_creation_conv)
         
@@ -67,6 +68,7 @@ class MainBot:
                 WAITING_FOR_PAYMENT_PROOF: [MessageHandler(filters.PHOTO | filters.TEXT, self.handle_payment_proof)],
             },
             fallbacks=[CommandHandler("cancel", self.cancel_conversation)],
+            per_message=False,
         )
         self.application.add_handler(payment_conv)
     
@@ -497,6 +499,24 @@ Click on a plan to proceed with payment.
             plan_type = f"plan_{parts[2]}_{parts[3]}"
             bot_id = int(parts[4])
             await payment_handler.show_payment_instructions(update, context, payment_method, plan_type, bot_id)
+    
+    async def start_payment(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Start payment conversation"""
+        query = update.callback_query
+        data = query.data
+        
+        # Extract payment info from callback data
+        parts = data.split("_")
+        if len(parts) >= 3:
+            plan_type = f"plan_{parts[1]}_{parts[2]}"
+            bot_id = int(parts[3])
+            await payment_handler.handle_plan_selection(update, context, plan_type)
+        else:
+            await query.edit_message_text("❌ Invalid payment data.")
+    
+    async def handle_payment_proof(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle payment proof submission"""
+        return await payment_handler.handle_payment_proof(update, context)
     
     async def handle_submit_proof_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE, data: str):
         """Handle payment proof submission callback"""
