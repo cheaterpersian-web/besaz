@@ -30,20 +30,20 @@ class PaymentHandler:
         user_bots = await db.get_user_bots(user_id)
         if not user_bots:
             await query.edit_message_text(
-                "❌ You don't have any bots yet.\\n"
-                "Please create a bot first using the 'Create New Bot' option."
+                "❌ هنوز رباتی نساختی.\\n"
+                "اول با گزینه ‘ایجاد ربات جدید’ یکی بساز بعد بیا اینجا."
             )
             return
         
         # Show bot selection
         text = f"""
-💳 **Payment for {plan_details['name']}**
+💳 **پرداخت برای {plan_details['name']}**
 
-💰 **Price:** ${plan_details['price']:.2f}
-⏰ **Duration:** {plan_details['duration']} days
-🆔 **Plan ID:** {plan_type}
+💰 **مبلغ:** ${plan_details['price']:.2f}
+⏰ **مدت:** {plan_details['duration']} روز
+🆔 **شناسه پلن:** {plan_type}
 
-**Select a bot to subscribe:**
+**یکی از ربات‌هات رو انتخاب کن:**
         """
         
         keyboard = []
@@ -52,18 +52,18 @@ class PaymentHandler:
             is_active = await db.is_subscription_active(bot['id'])
             
             if is_active:
-                status = "🟢 Active"
+                status = "🟢 فعال"
             elif subscription:
-                status = "🔴 Expired"
+                status = "🔴 منقضی"
             else:
-                status = "⚪ No subscription"
+                status = "⚪ بدون اشتراک"
             
             keyboard.append([InlineKeyboardButton(
                 f"@{bot['bot_username']} - {status}",
                 callback_data=f"payment_{plan_type}_{bot['id']}"
             )])
         
-        keyboard.append([InlineKeyboardButton("🔙 Back to Plans", callback_data="subscribe")])
+        keyboard.append([InlineKeyboardButton("🔙 بازگشت به پلن‌ها", callback_data="subscribe")])
         reply_markup = InlineKeyboardMarkup(keyboard)
         
         await query.edit_message_text(
@@ -74,7 +74,7 @@ class PaymentHandler:
     
     async def handle_payment_selection(self, update: Update, context: ContextTypes.DEFAULT_TYPE, 
                                      plan_type: str, bot_id: int):
-        """Handle payment method selection"""
+        """Handle payment method selection (Persian)"""
         query = update.callback_query
         user_id = query.from_user.id
         
@@ -92,20 +92,20 @@ class PaymentHandler:
         
         # Show payment methods
         text = f"""
-💳 **Payment Details**
+💳 **جزئیات پرداخت**
 
-🤖 **Bot:** @{bot['bot_username']}
-💰 **Plan:** {plan_details['name']}
-💵 **Amount:** ${plan_details['price']:.2f}
-⏰ **Duration:** {plan_details['duration']} days
+🤖 **ربات:** @{bot['bot_username']}
+💰 **پلن:** {plan_details['name']}
+💵 **مبلغ:** ${plan_details['price']:.2f}
+⏰ **مدت:** {plan_details['duration']} روز
 
-**Choose Payment Method:**
+**روش پرداخت رو انتخاب کن:**
         """
         
         keyboard = [
-            [InlineKeyboardButton("🏦 Bank Transfer", callback_data=f"method_bank_{plan_type}_{bot_id}")],
-            [InlineKeyboardButton("₿ Cryptocurrency", callback_data=f"method_crypto_{plan_type}_{bot_id}")],
-            [InlineKeyboardButton("🔙 Back to Bot Selection", callback_data=f"plan_{plan_type}")]
+            [InlineKeyboardButton("🏦 کارت‌به‌کارت", callback_data=f"method_bank_{plan_type}_{bot_id}")],
+            [InlineKeyboardButton("₿ ارز دیجیتال", callback_data=f"method_crypto_{plan_type}_{bot_id}")],
+            [InlineKeyboardButton("🔙 بازگشت به انتخاب ربات", callback_data=f"plan_{plan_type}")]
         ]
         
         reply_markup = InlineKeyboardMarkup(keyboard)
@@ -118,7 +118,7 @@ class PaymentHandler:
     
     async def show_payment_instructions(self, update: Update, context: ContextTypes.DEFAULT_TYPE,
                                       payment_method: str, plan_type: str, bot_id: int):
-        """Show payment instructions"""
+        """Show payment instructions (Persian)"""
         query = update.callback_query
         user_id = query.from_user.id
         
@@ -136,52 +136,52 @@ class PaymentHandler:
         
         if payment_method == "bank":
             text = f"""
-🏦 **Bank Transfer Payment**
+🏦 **پرداخت کارت‌به‌کارت**
 
-🤖 **Bot:** @{bot['bot_username']}
-💰 **Amount:** ${plan_details['price']:.2f}
-⏰ **Duration:** {plan_details['duration']} days
+🤖 **ربات:** @{bot['bot_username']}
+💰 **مبلغ:** ${plan_details['price']:.2f}
+⏰ **مدت:** {plan_details['duration']} روز
 
-**Payment Instructions:**
-1. Transfer ${plan_details['price']:.2f} to the following card:
+**راهنمای پرداخت:**
+1) مبلغ {plan_details['price']:.2f}$ رو به کارت زیر واریز کن:
    `{Config.BANK_CARD_NUMBER}`
 
-2. Take a screenshot of the payment confirmation
+2) از رسید پرداخت اسکرین‌شات بگیر
 
-3. Send the screenshot here as proof of payment
+3) همینجا عکس رسید رو بفرست
 
-4. Wait for admin approval (usually within 24 hours)
+4) منتظر تایید ادمین بمون (معمولاً تا ۲۴ ساعت)
 
-**Important:** Include your username (@{query.from_user.username}) in the payment description if possible.
+نکته: اگه شد، یوزرنیمت (@{query.from_user.username}) رو تو توضیحات پرداخت بنویس.
 
-Click "I've Made Payment" when you're ready to submit proof.
+وقتی واریزی رو انجام دادی، دکمه «پرداخت کردم» رو بزن.
             """
         else:  # crypto
             text = f"""
-₿ **Cryptocurrency Payment**
+₿ **پرداخت ارز دیجیتال**
 
-🤖 **Bot:** @{bot['bot_username']}
-💰 **Amount:** ${plan_details['price']:.2f}
-⏰ **Duration:** {plan_details['duration']} days
+🤖 **ربات:** @{bot['bot_username']}
+💰 **مبلغ:** ${plan_details['price']:.2f}
+⏰ **مدت:** {plan_details['duration']} روز
 
-**Payment Instructions:**
-1. Send ${plan_details['price']:.2f} worth of cryptocurrency to:
+**راهنمای پرداخت:**
+1) معادل {plan_details['price']:.2f}$ ارز دیجیتال به این آدرس بفرست:
    `{Config.CRYPTO_WALLET_ADDRESS}`
 
-2. Copy the transaction ID/hash
+2) شناسه/هش تراکنش رو کپی کن
 
-3. Send the transaction ID here as proof of payment
+3) همینجا شناسه تراکنش رو بفرست
 
-4. Wait for admin approval (usually within 24 hours)
+4) منتظر تایید ادمین بمون (معمولاً تا ۲۴ ساعت)
 
-**Important:** Make sure to send the exact amount in USD equivalent.
+نکته: مبلغ دقیق رو بفرست که مشکلی پیش نیاد.
 
-Click "I've Made Payment" when you're ready to submit proof.
+وقتی واریزی رو انجام دادی، دکمه «پرداخت کردم» رو بزن.
             """
         
         keyboard = [
-            [InlineKeyboardButton("✅ I've Made Payment", callback_data=f"submit_proof_{payment_method}_{plan_type}_{bot_id}")],
-            [InlineKeyboardButton("🔙 Back to Payment Methods", callback_data=f"payment_{plan_type}_{bot_id}")]
+            [InlineKeyboardButton("✅ پرداخت کردم", callback_data=f"submit_proof_{payment_method}_{plan_type}_{bot_id}")],
+            [InlineKeyboardButton("🔙 برگشت به روش‌های پرداخت", callback_data=f"payment_{plan_type}_{bot_id}")]
         ]
         
         reply_markup = InlineKeyboardMarkup(keyboard)
@@ -203,11 +203,11 @@ Click "I've Made Payment" when you're ready to submit proof.
         context.user_data['bot_id'] = bot_id
         
         await query.edit_message_text(
-            "📸 **Submit Payment Proof**\\n\\n"
-            "Please send your payment proof:\\n"
-            "• Screenshot of bank transfer (for bank payments)\\n"
-            "• Transaction ID/hash (for crypto payments)\\n\\n"
-            "Send /cancel to cancel this operation."
+            "📸 **ارسال رسید پرداخت**\\n\\n"
+            "لطفاً مدرک پرداختتو بفرست:\\n"
+            "• اسکرین‌شات کارت‌به‌کارت (برای کارت‌به‌کارت)\\n"
+            "• شناسه/هش تراکنش (برای ارز دیجیتال)\\n\\n"
+            "برای لغو، /cancel رو بزن."
         )
         
         return WAITING_FOR_PAYMENT_PROOF
@@ -222,19 +222,19 @@ Click "I've Made Payment" when you're ready to submit proof.
         bot_id = context.user_data.get('bot_id')
         
         if not all([payment_method, plan_type, bot_id]):
-            await update.message.reply_text("❌ Payment session expired. Please start over.")
+            await update.message.reply_text("❌ جلسه پرداخت تموم شده. از اول شروع کن.")
             return ConversationHandler.END
         
         # Get plan details
         plan_details = self.get_plan_details(plan_type)
         if not plan_details:
-            await update.message.reply_text("❌ Invalid plan selected.")
+            await update.message.reply_text("❌ پلن نامعتبره.")
             return ConversationHandler.END
         
         # Get bot info
         bot = await db.get_bot(bot_id)
         if not bot or bot['owner_id'] != user_id:
-            await update.message.reply_text("❌ Bot not found or access denied.")
+            await update.message.reply_text("❌ ربات پیدا نشد یا دسترسی نداری.")
             return ConversationHandler.END
         
         # Handle different proof types
@@ -244,7 +244,7 @@ Click "I've Made Payment" when you're ready to submit proof.
         elif update.message.text:
             proof_text = update.message.text
         else:
-            await update.message.reply_text("❌ Please send a photo or text as payment proof.")
+            await update.message.reply_text("❌ لطفاً عکس رسید یا متن شناسه تراکنش رو بفرست.")
             return "WAITING_FOR_PAYMENT_PROOF"
         
         # Add payment to database
@@ -261,12 +261,12 @@ Click "I've Made Payment" when you're ready to submit proof.
         await self.notify_admin_new_payment(payment_id, user_id, bot, plan_details, payment_method)
         
         await update.message.reply_text(
-            f"✅ **Payment proof submitted successfully!**\\n\\n"
-            f"Payment ID: {payment_id}\\n"
-            f"Amount: ${plan_details['price']:.2f}\\n"
-            f"Method: {payment_method.title()}\\n\\n"
-            f"Your payment is now pending admin approval.\\n"
-            f"You will be notified once it's processed."
+            f"✅ رسید پرداخت با موفقیت ثبت شد!\\n\\ن"
+            f"شناسه پرداخت: {payment_id}\\n"
+            f"مبلغ: ${plan_details['price']:.2f}\\n"
+            f"روش: {('کارت‌به‌کارت' if payment_method=='bank' else 'ارز دیجیتال')}\\n\\n"
+            f"پرداختت رفته برای تایید ادمین.\\n"
+            f"بهت خبر می‌دیم نتیجه چی شد."
         )
         
         return ConversationHandler.END
@@ -352,22 +352,22 @@ Click "I've Made Payment" when you're ready to submit proof.
         # For now, we'll show a placeholder
         
         text = """
-💳 **Payment History**
+💳 **تاریخچه پرداخت‌ها**
 
-Your payment history will be displayed here.
+اینجا تاریخچه پرداخت‌هات میاد.
 
-**Recent Payments:**
-• No payments found
+**پرداخت‌های اخیر:**
+• فعلاً چیزی ثبت نشده
 
-**Payment Status:**
-• Pending: 0
-• Approved: 0
-• Rejected: 0
+**وضعیت‌ها:**
+• در انتظار: ۰
+• تایید شده: ۰
+• رد شده: ۰
         """
         
         keyboard = [
-            [InlineKeyboardButton("💳 New Payment", callback_data="subscribe")],
-            [InlineKeyboardButton("🔙 Back to Main Menu", callback_data="main_menu")]
+            [InlineKeyboardButton("💳 پرداخت جدید", callback_data="subscribe")],
+            [InlineKeyboardButton("🔙 بازگشت به منوی اصلی", callback_data="main_menu")]
         ]
         
         reply_markup = InlineKeyboardMarkup(keyboard)

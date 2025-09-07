@@ -77,23 +77,22 @@ class BotInstance:
     async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /start command"""
         await update.message.reply_text(
-            "🤖 Bot is running!\\n"
-            "Use /help to see available commands."
+            "🤖 ربات فعاله!\\nبرای دیدن دستورات /help رو بزن."
         )
     
     async def help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /help command"""
         help_text = """
-🤖 Bot Commands:
-/start - Start the bot
-/help - Show this help message
-/status - Check bot status
+🤖 دستورات ربات:
+/start - شروع
+/help - همین راهنما
+/status - وضعیت ربات
         """
         await update.message.reply_text(help_text)
     
     async def status_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /status command"""
-        await update.message.reply_text("✅ Bot is active and running!")
+        await update.message.reply_text("✅ ربات فعاله و سالم کار می‌کنه!")
     
     async def run(self):
         """Run the bot"""

@@ -267,15 +267,15 @@ class MainBot:
         """Start bot creation conversation"""
         query = update.callback_query
         await query.edit_message_text(
-            "🤖 **Create New Bot**\\n\\n"
-            "To create a new bot, you need a bot token from @BotFather.\\n\\n"
-            "**Steps:**\\n"
-            "1. Go to @BotFather on Telegram\\n"
-            "2. Send /newbot command\\n"
-            "3. Follow the instructions\\n"
-            "4. Copy the bot token\\n"
-            "5. Send the token here\\n\\n"
-            "**Send your bot token now:**",
+            "🤖 **ساخت ربات جدید**\\n\\n"
+            "برای ساخت ربات لازمه از @BotFather یه توکن بگیری.\\n\\n"
+            "**مراحل کار:**\\n"
+            "1) برو سراغ @BotFather\\n"
+            "2) دستور /newbot رو بزن\\n"
+            "3) اسم و یوزرنیم بده\\n"
+            "4) توکن رو کپی کن\\n"
+            "5) همینجا برام بفرست\\n\\n"
+            "الان توکن رباتتو بفرست:",
             parse_mode=ParseMode.MARKDOWN
         )
         return WAITING_FOR_BOT_TOKEN
@@ -325,32 +325,32 @@ class MainBot:
         return ConversationHandler.END
     
     async def show_subscription_plans(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Show subscription plans"""
+        """Show subscription plans (Persian casual)"""
         plans_text = """
-💳 **Subscription Plans**
+💳 **پلن‌های اشتراک**
 
-Choose a plan to activate your bot:
+یکی از پلن‌ها رو انتخاب کن تا رباتت فعال بشه:
 
-**1 Month Plan**
-💰 Price: ${:.2f}
-⏰ Duration: {} days
-🆔 Plan ID: plan_1_month
+**پلن ۱ ماهه**
+💰 قیمت: ${:.2f}
+⏰ مدت: {} روز
+🆔 شناسه پلن: plan_1_month
 
-**2 Months Plan** (Best Value!)
-💰 Price: ${:.2f} (Save ${:.2f}!)
-⏰ Duration: {} days
-🆔 Plan ID: plan_2_months
+**پلن ۲ ماهه** (به‌صرفه‌تر!)
+💰 قیمت: ${:.2f} (صرفه‌جویی ${:.2f})
+⏰ مدت: {} روز
+🆔 شناسه پلن: plan_2_months
 
-**3 Months Plan** (Maximum Savings!)
-💰 Price: ${:.2f} (Save ${:.2f}!)
-⏰ Duration: {} days
-🆔 Plan ID: plan_3_months
+**پلن ۳ ماهه** (بهترین صرفه اقتصادی!)
+💰 قیمت: ${:.2f} (صرفه‌جویی ${:.2f})
+⏰ مدت: {} روز
+🆔 شناسه پلن: plan_3_months
 
-**Payment Methods:**
-• Bank Transfer (Card-to-Card)
-• Cryptocurrency
+**روش‌های پرداخت:**
+• کارت‌به‌کارت
+• ارز دیجیتال
 
-Click on a plan to proceed with payment.
+روی پلن دلخواهت بزن تا ادامه بدیم.
         """.format(
             Config.PRICE_1_MONTH, Config.PLAN_1_MONTH,
             Config.PRICE_2_MONTHS, Config.PRICE_1_MONTH * 2 - Config.PRICE_2_MONTHS, Config.PLAN_2_MONTHS,
@@ -359,11 +359,11 @@ Click on a plan to proceed with payment.
         
         keyboard = [
             [
-                InlineKeyboardButton("1 Month - ${:.2f}".format(Config.PRICE_1_MONTH), callback_data="plan_1_month"),
-                InlineKeyboardButton("2 Months - ${:.2f}".format(Config.PRICE_2_MONTHS), callback_data="plan_2_months")
+                InlineKeyboardButton("۱ ماهه - ${:.2f}".format(Config.PRICE_1_MONTH), callback_data="plan_1_month"),
+                InlineKeyboardButton("۲ ماهه - ${:.2f}".format(Config.PRICE_2_MONTHS), callback_data="plan_2_months")
             ],
-            [InlineKeyboardButton("3 Months - ${:.2f}".format(Config.PRICE_3_MONTHS), callback_data="plan_3_months")],
-            [InlineKeyboardButton("🔙 Back to Main Menu", callback_data="main_menu")]
+            [InlineKeyboardButton("۳ ماهه - ${:.2f}".format(Config.PRICE_3_MONTHS), callback_data="plan_3_months")],
+            [InlineKeyboardButton("🔙 بازگشت به منوی اصلی", callback_data="main_menu")]
         ]
         
         reply_markup = InlineKeyboardMarkup(keyboard)
