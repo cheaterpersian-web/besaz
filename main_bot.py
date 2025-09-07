@@ -45,7 +45,10 @@ class MainBot:
         bot_creation_conv = ConversationHandler(
             entry_points=[CallbackQueryHandler(self.start_bot_creation, pattern="^create_bot$")],
             states={
-                WAITING_FOR_BOT_TOKEN: [MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_bot_token)],
+                WAITING_FOR_BOT_TOKEN: [
+                    # First try to parse as token; if not a token and expecting admin/channel, route to text handler
+                    MessageHandler(filters.TEXT & ~filters.COMMAND, self.route_bot_creation_inputs)
+                ],
             },
             fallbacks=[CommandHandler("cancel", self.cancel_conversation)],
             per_message=True,
@@ -304,6 +307,7 @@ class MainBot:
             # Ask for admin id
             context.user_data['new_bot_id'] = bot_id
             context.user_data['awaiting_admin_id'] = True
+            context.user_data['awaiting_bot_token'] = False
             await update.message.reply_text(
                 "👤 آیدی عددی ادمین این ربات رو بفرست (از @userinfobot)")
             return ConversationHandler.END
@@ -317,6 +321,16 @@ class MainBot:
             return WAITING_FOR_BOT_TOKEN
         
         return ConversationHandler.END
+
+    async def route_bot_creation_inputs(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Route incoming text during bot creation: token vs admin/channel IDs."""
+        text = (update.message.text or "").strip()
+        # If waiting for admin/channel, let generic text handler process it
+        if context.user_data.get('awaiting_admin_id') or context.user_data.get('awaiting_channel_id'):
+            await self.handle_text_messages(update, context)
+            return WAITING_FOR_BOT_TOKEN
+        # Otherwise treat as token
+        return await self.handle_bot_token(update, context)
 
     async def handle_text_messages(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle admin inline inputs for settings updates"""
