@@ -7,6 +7,7 @@ from telegram.ext import (
 )
 from telegram.constants import ParseMode
 from datetime import datetime, timedelta
+from html import escape
 import os
 from config import Config
 from database import db
@@ -681,22 +682,23 @@ Click on a plan to proceed with payment.
     
     async def show_admin_settings(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Show admin settings"""
-        text = f"""
-⚙️ **Admin Settings**
-
-**Current Configuration:**
-• 1 Month Plan: ${Config.PRICE_1_MONTH:.2f} ({Config.PLAN_1_MONTH} days)
-• 2 Months Plan: ${Config.PRICE_2_MONTHS:.2f} ({Config.PLAN_2_MONTHS} days)
-• 3 Months Plan: ${Config.PRICE_3_MONTHS:.2f} ({Config.PLAN_3_MONTHS} days)
-
-**Payment Methods:**
-• Bank Card: {Config.BANK_CARD_NUMBER}
-• Crypto Wallet: {Config.CRYPTO_WALLET_ADDRESS}
-
-**System Info:**
-• Bot Repository: {Config.BOT_REPO_URL}
-• Deployment Dir: {Config.BOT_DEPLOYMENT_DIR}
-        """
+        bank = escape(str(Config.BANK_CARD_NUMBER or "-"))
+        crypto = escape(str(Config.CRYPTO_WALLET_ADDRESS or "-"))
+        repo = escape(str(Config.BOT_REPO_URL or "-"))
+        deploy = escape(str(Config.BOT_DEPLOYMENT_DIR or "-"))
+        text = (
+            f"<b>⚙️ Admin Settings</b>\n\n"
+            f"<b>Current Configuration:</b>\n"
+            f"• 1 Month Plan: ${Config.PRICE_1_MONTH:.2f} ({Config.PLAN_1_MONTH} days)\n"
+            f"• 2 Months Plan: ${Config.PRICE_2_MONTHS:.2f} ({Config.PLAN_2_MONTHS} days)\n"
+            f"• 3 Months Plan: ${Config.PRICE_3_MONTHS:.2f} ({Config.PLAN_3_MONTHS} days)\n\n"
+            f"<b>Payment Methods:</b>\n"
+            f"• Bank Card: <code>{bank}</code>\n"
+            f"• Crypto Wallet: <code>{crypto}</code>\n\n"
+            f"<b>System Info:</b>\n"
+            f"• Bot Repository: <code>{repo}</code>\n"
+            f"• Deployment Dir: <code>{deploy}</code>"
+        )
         
         keyboard = [
             [InlineKeyboardButton("💰 Update Prices", callback_data="update_prices")],
@@ -708,7 +710,7 @@ Click on a plan to proceed with payment.
         
         await update.callback_query.edit_message_text(
             text,
-            parse_mode=ParseMode.MARKDOWN,
+            parse_mode=ParseMode.HTML,
             reply_markup=reply_markup
         )
     
