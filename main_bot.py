@@ -836,6 +836,8 @@ class MainBot:
                     await db.set_setting('PRICE_3_MONTHS', str(mapping['3']))
                 context.user_data['awaiting_prices'] = False
                 await update.message.reply_text("✅ قیمت‌ها بروزرسانی شد.")
+                # Refresh admin settings view
+                await self.show_admin_settings(update, context)
             except Exception:
                 await update.message.reply_text("❌ فرمت اشتباهه. مثال: 1=10.00, 2=18.00, 3=25.00")
             return
@@ -857,6 +859,8 @@ class MainBot:
                     await db.set_setting('CRYPTO_WALLET_ADDRESS', kv['CRYPTO'])
                 context.user_data['awaiting_payment'] = False
                 await update.message.reply_text("✅ اطلاعات پرداخت بروزرسانی شد.")
+                # Refresh admin settings view
+                await self.show_admin_settings(update, context)
             except Exception:
                 await update.message.reply_text("❌ فرمت اشتباهه. مثال: CARD=xxxx, CRYPTO=wallet")
     
