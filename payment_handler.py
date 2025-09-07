@@ -20,8 +20,8 @@ class PaymentHandler:
         query = update.callback_query
         user_id = query.from_user.id
         
-        # Get plan details
-        plan_details = self.get_plan_details(plan_type)
+        # Get plan details (runtime from settings)
+        plan_details = await self.get_runtime_plan_details(plan_type)
         if not plan_details:
             await query.edit_message_text("❌ Invalid plan selected.")
             return
@@ -79,7 +79,7 @@ class PaymentHandler:
         user_id = query.from_user.id
         
         # Get plan details
-        plan_details = self.get_plan_details(plan_type)
+        plan_details = await self.get_runtime_plan_details(plan_type)
         if not plan_details:
             await query.edit_message_text("❌ Invalid plan selected.")
             return
@@ -123,7 +123,7 @@ class PaymentHandler:
         user_id = query.from_user.id
         
         # Get plan details
-        plan_details = self.get_plan_details(plan_type)
+        plan_details = await self.get_runtime_plan_details(plan_type)
         if not plan_details:
             await query.edit_message_text("❌ Invalid plan selected.")
             return
@@ -137,8 +137,11 @@ class PaymentHandler:
         from html import escape
         safe_bot = escape(str(bot['bot_username']))
         safe_user = escape(str(query.from_user.username or ""))
-        bank = escape(str(Config.BANK_CARD_NUMBER or "-"))
-        wallet = escape(str(Config.CRYPTO_WALLET_ADDRESS or "-"))
+        # Read bank/wallet from settings with fallback to Config
+        bank_val = await db.get_setting('BANK_CARD_NUMBER')
+        wallet_val = await db.get_setting('CRYPTO_WALLET_ADDRESS')
+        bank = escape(str(bank_val or Config.BANK_CARD_NUMBER or "-"))
+        wallet = escape(str(wallet_val or Config.CRYPTO_WALLET_ADDRESS or "-"))
 
         if payment_method == "bank":
             text = (
@@ -218,7 +221,7 @@ class PaymentHandler:
             return ConversationHandler.END
         
         # Get plan details
-        plan_details = self.get_plan_details(plan_type)
+        plan_details = await self.get_runtime_plan_details(plan_type)
         if not plan_details:
             await update.message.reply_text("❌ پلن نامعتبره.")
             return ConversationHandler.END
@@ -428,6 +431,40 @@ class PaymentHandler:
             }
         }
         
+        return plans.get(plan_type)
+
+    async def get_runtime_plan_details(self, plan_type: str) -> Optional[Dict[str, Any]]:
+        """Get plan details pulling latest prices from DB settings (fallback to Config)."""
+        # Read settings
+        p1 = await db.get_setting('PRICE_1_MONTH')
+        p2 = await db.get_setting('PRICE_2_MONTHS')
+        p3 = await db.get_setting('PRICE_3_MONTHS')
+        try:
+            price_1 = float(p1) if p1 is not None else float(Config.PRICE_1_MONTH or 0)
+            price_2 = float(p2) if p2 is not None else float(Config.PRICE_2_MONTHS or 0)
+            price_3 = float(p3) if p3 is not None else float(Config.PRICE_3_MONTHS or 0)
+        except Exception:
+            price_1 = float(Config.PRICE_1_MONTH or 0)
+            price_2 = float(Config.PRICE_2_MONTHS or 0)
+            price_3 = float(Config.PRICE_3_MONTHS or 0)
+
+        plans = {
+            "plan_1_month": {
+                "name": "پلن ۱ ماهه",
+                "price": price_1,
+                "duration": Config.PLAN_1_MONTH
+            },
+            "plan_2_months": {
+                "name": "پلن ۲ ماهه",
+                "price": price_2,
+                "duration": Config.PLAN_2_MONTHS
+            },
+            "plan_3_months": {
+                "name": "پلن ۳ ماهه",
+                "price": price_3,
+                "duration": Config.PLAN_3_MONTHS
+            }
+        }
         return plans.get(plan_type)
     
     async def show_payment_history(self, update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: int):

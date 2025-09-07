@@ -305,43 +305,46 @@ class MainBot:
     
     async def show_subscription_plans(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Show subscription plans (Persian casual)"""
-        plans_text = """
-💳 **پلن‌های اشتراک**
+        # Pull latest prices from settings (fallback to Config)
+        price_1 = await db.get_setting('PRICE_1_MONTH')
+        price_2 = await db.get_setting('PRICE_2_MONTHS')
+        price_3 = await db.get_setting('PRICE_3_MONTHS')
+        try:
+            p1 = float(price_1) if price_1 is not None else float(Config.PRICE_1_MONTH or 0)
+            p2 = float(price_2) if price_2 is not None else float(Config.PRICE_2_MONTHS or 0)
+            p3 = float(price_3) if price_3 is not None else float(Config.PRICE_3_MONTHS or 0)
+        except Exception:
+            p1 = float(Config.PRICE_1_MONTH or 0)
+            p2 = float(Config.PRICE_2_MONTHS or 0)
+            p3 = float(Config.PRICE_3_MONTHS or 0)
 
-یکی از پلن‌ها رو انتخاب کن تا رباتت فعال بشه:
-
-**پلن ۱ ماهه**
-💰 قیمت: ${:.2f}
-⏰ مدت: {} روز
-🆔 شناسه پلن: plan_1_month
-
-**پلن ۲ ماهه** (به‌صرفه‌تر!)
-💰 قیمت: ${:.2f} (صرفه‌جویی ${:.2f})
-⏰ مدت: {} روز
-🆔 شناسه پلن: plan_2_months
-
-**پلن ۳ ماهه** (بهترین صرفه اقتصادی!)
-💰 قیمت: ${:.2f} (صرفه‌جویی ${:.2f})
-⏰ مدت: {} روز
-🆔 شناسه پلن: plan_3_months
-
-**روش‌های پرداخت:**
-• کارت‌به‌کارت
-• ارز دیجیتال
-
-روی پلن دلخواهت بزن تا ادامه بدیم.
-        """.format(
-            Config.PRICE_1_MONTH, Config.PLAN_1_MONTH,
-            Config.PRICE_2_MONTHS, Config.PRICE_1_MONTH * 2 - Config.PRICE_2_MONTHS, Config.PLAN_2_MONTHS,
-            Config.PRICE_3_MONTHS, Config.PRICE_1_MONTH * 3 - Config.PRICE_3_MONTHS, Config.PLAN_3_MONTHS
+        plans_text = (
+            "💳 **پلن‌های اشتراک**\n\n"
+            "یکی از پلن‌ها رو انتخاب کن تا رباتت فعال بشه:\n\n"
+            "**پلن ۱ ماهه**\n"
+            f"💰 قیمت: ${p1:.2f}\n"
+            f"⏰ مدت: {Config.PLAN_1_MONTH} روز\n"
+            "🆔 شناسه پلن: plan_1_month\n\n"
+            "**پلن ۲ ماهه** (به‌صرفه‌تر!)\n"
+            f"💰 قیمت: ${p2:.2f} (صرفه‌جویی ${max(p1*2 - p2, 0):.2f})\n"
+            f"⏰ مدت: {Config.PLAN_2_MONTHS} روز\n"
+            "🆔 شناسه پلن: plan_2_months\n\n"
+            "**پلن ۳ ماهه** (بهترین صرفه اقتصادی!)\n"
+            f"💰 قیمت: ${p3:.2f} (صرفه‌جویی ${max(p1*3 - p3, 0):.2f})\n"
+            f"⏰ مدت: {Config.PLAN_3_MONTHS} روز\n"
+            "🆔 شناسه پلن: plan_3_months\n\n"
+            "**روش‌های پرداخت:**\n"
+            "• کارت‌به‌کارت\n"
+            "• ارز دیجیتال\n\n"
+            "روی پلن دلخواهت بزن تا ادامه بدیم."
         )
         
         keyboard = [
             [
-                InlineKeyboardButton("۱ ماهه - ${:.2f}".format(Config.PRICE_1_MONTH), callback_data="plan_1_month"),
-                InlineKeyboardButton("۲ ماهه - ${:.2f}".format(Config.PRICE_2_MONTHS), callback_data="plan_2_months")
+                InlineKeyboardButton("۱ ماهه - ${:.2f}".format(p1), callback_data="plan_1_month"),
+                InlineKeyboardButton("۲ ماهه - ${:.2f}".format(p2), callback_data="plan_2_months")
             ],
-            [InlineKeyboardButton("۳ ماهه - ${:.2f}".format(Config.PRICE_3_MONTHS), callback_data="plan_3_months")],
+            [InlineKeyboardButton("۳ ماهه - ${:.2f}".format(p3), callback_data="plan_3_months")],
             [InlineKeyboardButton("🔙 بازگشت به منوی اصلی", callback_data="main_menu")]
         ]
         
