@@ -136,38 +136,38 @@ class MainBot:
     async def help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /help command"""
         help_text = """
-🤖 **Bot Manager System - Help**
+🤖 **سیستم مدیریت ربات - راهنما**
 
-**User Commands:**
-/start - Start the bot and see main menu
-/mybots - View your bots and their status
-/subscribe - Subscribe to a plan
-/payments - View payment history
-/help - Show this help message
+**دستورات کاربر:**
+/start - شروع ربات و نمایش منوی اصلی
+/mybots - مشاهده ربات‌های شما و وضعیت آن‌ها
+/subscribe - اشتراک در یک پلن
+/payments - مشاهده تاریخچه پرداخت‌ها
+/help - نمایش این پیام راهنما
 
-**Admin Commands:**
-/setup - Initial bot setup (admin only)
-/admin - Admin panel
-/users - Manage users
-/broadcast - Send message to all users
+**دستورات ادمین:**
+/setup - راه‌اندازی اولیه ربات (فقط ادمین)
+/admin - پنل ادمین
+/users - مدیریت کاربران
+/broadcast - ارسال پیام به همه کاربران
 
-**How to create a bot:**
-1. Get a bot token from @BotFather
-2. Use "Create New Bot" button
-3. Provide your bot token
-4. Subscribe to a plan
-5. Your bot will be deployed automatically!
+**نحوه ایجاد ربات:**
+1. توکن ربات را از @BotFather دریافت کنید
+2. از دکمه "ایجاد ربات جدید" استفاده کنید
+3. توکن ربات خود را ارائه دهید
+4. در یک پلن اشتراک شوید
+5. ربات شما به طور خودکار راه‌اندازی می‌شود!
 
-**Subscription Plans:**
-• 1 Month: ${:.2f}
-• 2 Months: ${:.2f} (Save ${:.2f}!)
-• 3 Months: ${:.2f} (Save ${:.2f}!)
+**پلن‌های اشتراک:**
+• 1 ماه: ${:.2f}
+• 2 ماه: ${:.2f} (صرفه‌جویی ${:.2f}!)
+• 3 ماه: ${:.2f} (صرفه‌جویی ${:.2f}!)
 
-**Payment Methods:**
-• Bank Transfer (Card-to-Card)
-• Cryptocurrency
+**روش‌های پرداخت:**
+• انتقال بانکی (کارت به کارت)
+• ارز دیجیتال
 
-Need help? Contact the admin!
+نیاز به کمک دارید؟ با ادمین تماس بگیرید!
         """.format(
             Config.PRICE_1_MONTH,
             Config.PRICE_2_MONTHS,
@@ -176,7 +176,11 @@ Need help? Contact the admin!
             Config.PRICE_1_MONTH * 3 - Config.PRICE_3_MONTHS
         )
         
-        await update.message.reply_text(help_text, parse_mode=ParseMode.MARKDOWN)
+        # Check if it's a callback query or message
+        if update.callback_query:
+            await update.callback_query.edit_message_text(help_text, parse_mode=ParseMode.MARKDOWN)
+        else:
+            await update.message.reply_text(help_text, parse_mode=ParseMode.MARKDOWN)
     
     @handle_telegram_errors
     async def admin_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
