@@ -692,17 +692,28 @@ class MainBot:
         )
     
     async def show_admin_settings(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Show admin settings (Persian)"""
-        bank = escape(str(Config.BANK_CARD_NUMBER or "-"))
-        crypto = escape(str(Config.CRYPTO_WALLET_ADDRESS or "-"))
+        """Show admin settings (Persian) with live values from DB settings, fallback to Config."""
+        # Read runtime values from settings table if available
+        price_1 = await db.get_setting('PRICE_1_MONTH')
+        price_2 = await db.get_setting('PRICE_2_MONTHS')
+        price_3 = await db.get_setting('PRICE_3_MONTHS')
+        bank_val = await db.get_setting('BANK_CARD_NUMBER')
+        crypto_val = await db.get_setting('CRYPTO_WALLET_ADDRESS')
+
+        p1 = float(price_1) if price_1 else float(Config.PRICE_1_MONTH or 0)
+        p2 = float(price_2) if price_2 else float(Config.PRICE_2_MONTHS or 0)
+        p3 = float(price_3) if price_3 else float(Config.PRICE_3_MONTHS or 0)
+        bank = escape(str(bank_val or Config.BANK_CARD_NUMBER or "-"))
+        crypto = escape(str(crypto_val or Config.CRYPTO_WALLET_ADDRESS or "-"))
         repo = escape(str(Config.BOT_REPO_URL or "-"))
         deploy = escape(str(Config.BOT_DEPLOYMENT_DIR or "-"))
+
         text = (
             f"<b>⚙️ تنظیمات ادمین</b>\n\n"
             f"<b>پیکربندی فعلی:</b>\n"
-            f"• پلن ۱ ماهه: ${Config.PRICE_1_MONTH:.2f} ({Config.PLAN_1_MONTH} روز)\n"
-            f"• پلن ۲ ماهه: ${Config.PRICE_2_MONTHS:.2f} ({Config.PLAN_2_MONTHS} روز)\n"
-            f"• پلن ۳ ماهه: ${Config.PRICE_3_MONTHS:.2f} ({Config.PLAN_3_MONTHS} روز)\n\n"
+            f"• پلن ۱ ماهه: ${p1:.2f} ({Config.PLAN_1_MONTH} روز)\n"
+            f"• پلن ۲ ماهه: ${p2:.2f} ({Config.PLAN_2_MONTHS} روز)\n"
+            f"• پلن ۳ ماهه: ${p3:.2f} ({Config.PLAN_3_MONTHS} روز)\n\n"
             f"<b>روش‌های پرداخت:</b>\n"
             f"• کارت: <code>{bank}</code>\n"
             f"• ولت ارز دیجیتال: <code>{crypto}</code>\n\n"
@@ -719,11 +730,18 @@ class MainBot:
         
         reply_markup = InlineKeyboardMarkup(keyboard)
         
-        await update.callback_query.edit_message_text(
-            text,
-            parse_mode=ParseMode.HTML,
-            reply_markup=reply_markup
-        )
+        if update.callback_query:
+            await update.callback_query.edit_message_text(
+                text,
+                parse_mode=ParseMode.HTML,
+                reply_markup=reply_markup
+            )
+        else:
+            await update.message.reply_text(
+                text,
+                parse_mode=ParseMode.HTML,
+                reply_markup=reply_markup
+            )
     
     async def show_broadcast_panel(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Show broadcast panel for admin"""
