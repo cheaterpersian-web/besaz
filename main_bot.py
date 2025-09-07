@@ -419,14 +419,14 @@ class MainBot:
             )
     
     async def show_user_bots(self, update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: int):
-        """Show user's bots"""
+        """Show user's bots (HTML, safe, with real newlines)"""
         bots = await db.get_user_bots(user_id)
         
         if not bots:
-            text = "🤖 **ربات‌های شما**\\n\\nهنوز هیچ رباتی ندارید.\\n\\nبرای شروع روی 'ایجاد ربات جدید' کلیک کنید!"
+            text = "<b>🤖 ربات‌های شما</b>\n\nهنوز هیچ رباتی ندارید.\n\nبرای شروع روی ‘ایجاد ربات جدید’ کلیک کنید!"
             keyboard = [[InlineKeyboardButton("➕ ایجاد ربات جدید", callback_data="create_bot")]]
         else:
-            text = "🤖 **ربات‌های شما**\\n\\n"
+            text = "<b>🤖 ربات‌های شما</b>\n\n"
             keyboard = []
             
             for bot in bots:
@@ -437,16 +437,25 @@ class MainBot:
                 status_emoji = "🟢" if is_running and is_active else "🔴"
                 status_text = "فعال" if is_running and is_active else "غیرفعال"
                 
+                username_html = f"<b>@{escape(str(bot['bot_username']))}</b>"
+                
                 if subscription:
                     end_date = datetime.fromisoformat(subscription['end_date'])
                     days_left = (end_date - datetime.now()).days
-                    text += f"{status_emoji} **@{bot['bot_username']}**\\n"
-                    text += f"وضعیت: {status_text}\\n"
-                    text += f"پلن: {subscription['plan_type']}\\n"
-                    text += f"روزهای باقی‌مانده: {days_left}\\n\\n"
+                    # Human-friendly plan name
+                    plan_key = str(subscription['plan_type'] or '')
+                    plan_display = {
+                        'plan_1_month': '۱ ماهه',
+                        'plan_2_months': '۲ ماهه',
+                        'plan_3_months': '۳ ماهه',
+                    }.get(plan_key, escape(plan_key))
+                    text += f"{status_emoji} {username_html}\n"
+                    text += f"وضعیت: {status_text}\n"
+                    text += f"پلن: {plan_display}\n"
+                    text += f"روزهای باقی‌مانده: {days_left}\n\n"
                 else:
-                    text += f"🔴 **@{bot['bot_username']}**\\n"
-                    text += f"وضعیت: بدون اشتراک\\n\\n"
+                    text += f"🔴 {username_html}\n"
+                    text += "وضعیت: بدون اشتراک\n\n"
                 
                 keyboard.append([InlineKeyboardButton(
                     f"مدیریت @{bot['bot_username']}", 
@@ -461,13 +470,13 @@ class MainBot:
         if update.callback_query:
             await update.callback_query.edit_message_text(
                 text,
-                parse_mode=ParseMode.MARKDOWN,
+                parse_mode=ParseMode.HTML,
                 reply_markup=reply_markup
             )
         else:
             await update.message.reply_text(
                 text,
-                parse_mode=ParseMode.MARKDOWN,
+                parse_mode=ParseMode.HTML,
                 reply_markup=reply_markup
             )
     
