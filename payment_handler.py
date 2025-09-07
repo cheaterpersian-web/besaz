@@ -333,41 +333,74 @@ class PaymentHandler:
             logger.error(f"Error sending admin payment proof for {payment_id}: {e}")
     
     async def approve_payment(self, payment_id: int, admin_id: int) -> bool:
-        """Approve a payment and activate subscription"""
+        """Approve a payment: mark approved, add subscription, deploy bot, notify user/admin."""
         try:
-            # Get payment info
-            # This would require a new method in the database class
-            # For now, we'll implement the logic
-            
-            # Update payment status
+            payment = await db.get_payment(payment_id)
+            if not payment:
+                return False
+            bot = await db.get_bot(payment['bot_id']) if payment.get('bot_id') else None
+            plan_details = self.get_plan_details(payment['plan_type'])
+            if not plan_details:
+                return False
+            # Update status
             await db.update_payment_status(payment_id, Config.PAYMENT_STATUS_APPROVED, admin_id)
-            
-            # Get payment details (this would need to be implemented in database.py)
-            # payment = await db.get_payment(payment_id)
-            # if not payment:
-            #     return False
-            
-            # Add subscription
-            # await db.add_subscription(payment['bot_id'], payment['plan_type'], plan_details['duration'])
-            
-            # Deploy bot if not running
-            # await bot_manager.deploy_bot(payment['bot_id'], bot['bot_token'])
-            
+            # Add/extend subscription
+            await db.add_subscription(payment['bot_id'], payment['plan_type'], plan_details['duration'])
+            # Deploy bot if token available
+            if bot and bot.get('bot_token'):
+                await bot_manager.deploy_bot(payment['bot_id'], bot['bot_token'])
+            # Notify user
+            try:
+                from telegram import Bot as PTBBot
+                # Using main bot to notify
+                # context.bot is not here, so use a new Bot
+                notify_bot = PTBBot(token=Config.MAIN_BOT_TOKEN)
+                await notify_bot.send_message(chat_id=int(payment['user_id']), text=(
+                    "✅ پرداخت شما تایید شد!\n\n"
+                    f"ربات شما اکنون فعال است.\n"
+                    f"پلن: {plan_details['name']} ({plan_details['duration']} روز)"
+                ))
+            except Exception:
+                pass
+            # Notify admin
+            try:
+                if Config.ADMIN_USER_ID:
+                    from telegram import Bot as PTBBot
+                    notify_bot = PTBBot(token=Config.MAIN_BOT_TOKEN)
+                    await notify_bot.send_message(chat_id=int(Config.ADMIN_USER_ID), text=f"✅ پرداخت #{payment_id} تایید شد.")
+            except Exception:
+                pass
             logger.info(f"Payment {payment_id} approved by admin {admin_id}")
             return True
-            
         except Exception as e:
             logger.error(f"Error approving payment {payment_id}: {e}")
             return False
     
     async def reject_payment(self, payment_id: int, admin_id: int, reason: str = None) -> bool:
-        """Reject a payment"""
+        """Reject a payment: mark rejected and notify user/admin."""
         try:
+            payment = await db.get_payment(payment_id)
+            if not payment:
+                return False
             await db.update_payment_status(payment_id, Config.PAYMENT_STATUS_REJECTED, admin_id)
-            
+            # Notify user
+            try:
+                from telegram import Bot as PTBBot
+                notify_bot = PTBBot(token=Config.MAIN_BOT_TOKEN)
+                rejection_text = "❌ پرداخت شما رد شد." + (f"\nدلیل: {reason}" if reason else "")
+                await notify_bot.send_message(chat_id=int(payment['user_id']), text=rejection_text)
+            except Exception:
+                pass
+            # Notify admin
+            try:
+                if Config.ADMIN_USER_ID:
+                    from telegram import Bot as PTBBot
+                    notify_bot = PTBBot(token=Config.MAIN_BOT_TOKEN)
+                    await notify_bot.send_message(chat_id=int(Config.ADMIN_USER_ID), text=f"❌ پرداخت #{payment_id} رد شد.")
+            except Exception:
+                pass
             logger.info(f"Payment {payment_id} rejected by admin {admin_id}")
             return True
-            
         except Exception as e:
             logger.error(f"Error rejecting payment {payment_id}: {e}")
             return False

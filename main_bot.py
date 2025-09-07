@@ -632,6 +632,26 @@ class MainBot:
             await self.prompt_update_prices(update, context)
         elif data == "update_payment_info":
             await self.prompt_update_payment_info(update, context)
+        elif data.startswith("approve_payment_"):
+            try:
+                payment_id = int(data.split("_")[-1])
+                ok = await payment_handler.approve_payment(payment_id, user_id)
+                if ok:
+                    await self.show_pending_payments(update, context)
+                else:
+                    await update.callback_query.answer("خطا در تایید پرداخت", show_alert=True)
+            except Exception:
+                await update.callback_query.answer("خطا در تایید پرداخت", show_alert=True)
+        elif data.startswith("reject_payment_"):
+            try:
+                payment_id = int(data.split("_")[-1])
+                ok = await payment_handler.reject_payment(payment_id, user_id)
+                if ok:
+                    await self.show_pending_payments(update, context)
+                else:
+                    await update.callback_query.answer("خطا در رد پرداخت", show_alert=True)
+            except Exception:
+                await update.callback_query.answer("خطا در رد پرداخت", show_alert=True)
     
     @handle_telegram_errors
     async def show_pending_payments(self, update: Update, context: ContextTypes.DEFAULT_TYPE):

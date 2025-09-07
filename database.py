@@ -264,6 +264,14 @@ class Database:
                 rows = await cursor.fetchall()
                 return [dict(row) for row in rows]
     
+    async def get_payment(self, payment_id: int) -> Optional[Dict[str, Any]]:
+        """Get a single payment by id"""
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute('SELECT * FROM payments WHERE id = ?', (payment_id,)) as cursor:
+                row = await cursor.fetchone()
+                return dict(row) if row else None
+    
     async def update_payment_status(self, payment_id: int, status: str, processed_by: int) -> bool:
         """Update payment status"""
         try:
