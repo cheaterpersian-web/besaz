@@ -254,6 +254,9 @@ class MainBot:
             await self.start_command(update, context)
         elif data == "admin_panel":
             await self.show_admin_panel(update, context)
+        elif data == "update_prices" or data == "update_payment_info":
+            # Forward admin-settings actions
+            await self.handle_admin_callback(update, context, data)
         elif data.startswith("bot_"):
             await self.handle_bot_callback(update, context, data)
         elif data.startswith("plan_"):
