@@ -1,0 +1,29 @@
+[Unit]
+Description=Telegram Bot Manager System
+After=network.target
+
+[Service]
+Type=simple
+User=botmanager
+Group=botmanager
+WorkingDirectory=/opt/bot-manager
+ExecStart=/usr/bin/python3 /opt/bot-manager/run.py
+Restart=always
+RestartSec=10
+Environment=PYTHONPATH=/opt/bot-manager
+Environment=PYTHONUNBUFFERED=1
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=bot-manager
+
+# Security
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/bot-manager/data /opt/bot-manager/logs /opt/bot-manager/deployed_bots
+
+[Install]
+WantedBy=multi-user.target
