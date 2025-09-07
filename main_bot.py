@@ -689,23 +689,23 @@ class MainBot:
         )
     
     async def show_admin_settings(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Show admin settings"""
+        """Show admin settings (Persian)"""
         bank = escape(str(Config.BANK_CARD_NUMBER or "-"))
         crypto = escape(str(Config.CRYPTO_WALLET_ADDRESS or "-"))
         repo = escape(str(Config.BOT_REPO_URL or "-"))
         deploy = escape(str(Config.BOT_DEPLOYMENT_DIR or "-"))
         text = (
-            f"<b>⚙️ Admin Settings</b>\n\n"
-            f"<b>Current Configuration:</b>\n"
-            f"• 1 Month Plan: ${Config.PRICE_1_MONTH:.2f} ({Config.PLAN_1_MONTH} days)\n"
-            f"• 2 Months Plan: ${Config.PRICE_2_MONTHS:.2f} ({Config.PLAN_2_MONTHS} days)\n"
-            f"• 3 Months Plan: ${Config.PRICE_3_MONTHS:.2f} ({Config.PLAN_3_MONTHS} days)\n\n"
-            f"<b>Payment Methods:</b>\n"
-            f"• Bank Card: <code>{bank}</code>\n"
-            f"• Crypto Wallet: <code>{crypto}</code>\n\n"
-            f"<b>System Info:</b>\n"
-            f"• Bot Repository: <code>{repo}</code>\n"
-            f"• Deployment Dir: <code>{deploy}</code>"
+            f"<b>⚙️ تنظیمات ادمین</b>\n\n"
+            f"<b>پیکربندی فعلی:</b>\n"
+            f"• پلن ۱ ماهه: ${Config.PRICE_1_MONTH:.2f} ({Config.PLAN_1_MONTH} روز)\n"
+            f"• پلن ۲ ماهه: ${Config.PRICE_2_MONTHS:.2f} ({Config.PLAN_2_MONTHS} روز)\n"
+            f"• پلن ۳ ماهه: ${Config.PRICE_3_MONTHS:.2f} ({Config.PLAN_3_MONTHS} روز)\n\n"
+            f"<b>روش‌های پرداخت:</b>\n"
+            f"• کارت: <code>{bank}</code>\n"
+            f"• ولت ارز دیجیتال: <code>{crypto}</code>\n\n"
+            f"<b>اطلاعات سیستم:</b>\n"
+            f"• سورس ربات: <code>{repo}</code>\n"
+            f"• مسیر استقرار: <code>{deploy}</code>"
         )
         
         keyboard = [
@@ -768,6 +768,76 @@ class MainBot:
             parse_mode=ParseMode.MARKDOWN,
             reply_markup=reply_markup
         )
+
+    async def prompt_update_prices(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Prompt admin to send new prices in one line"""
+        context.user_data['awaiting_prices'] = True
+        context.user_data['awaiting_payment'] = False
+        await update.callback_query.edit_message_text(
+            "💰 قیمت‌های جدید رو به این شکل بفرست:\n\n"
+            "مثال: 1=10.00, 2=18.00, 3=25.00\n\n"
+            "یعنی: ۱ ماهه=۱۰ دلار، ۲ ماهه=۱۸ دلار، ۳ ماهه=۲۵ دلار"
+        )
+
+    async def prompt_update_payment_info(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Prompt admin to send new payment info"""
+        context.user_data['awaiting_payment'] = True
+        context.user_data['awaiting_prices'] = False
+        await update.callback_query.edit_message_text(
+            "💳 اطلاعات پرداخت رو به این شکل بفرست:\n\n"
+            "CARD=xxxx-xxxx-xxxx-xxxx, CRYPTO=your_wallet"
+        )
+
+    async def handle_text_messages(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle admin inline inputs for settings updates"""
+        user_id = update.effective_user.id
+        if not await db.is_admin(user_id):
+            return
+        text = (update.message.text or "").strip()
+        # Update prices
+        if context.user_data.get('awaiting_prices'):
+            try:
+                parts = [p.strip() for p in text.split(',') if p.strip()]
+                mapping = {}
+                for p in parts:
+                    if '=' not in p:
+                        raise ValueError('bad part')
+                    k, v = [x.strip() for x in p.split('=', 1)]
+                    mapping[k] = float(v)
+                if '1' in mapping:
+                    Config.PRICE_1_MONTH = mapping['1']
+                    await db.set_setting('PRICE_1_MONTH', str(mapping['1']))
+                if '2' in mapping:
+                    Config.PRICE_2_MONTHS = mapping['2']
+                    await db.set_setting('PRICE_2_MONTHS', str(mapping['2']))
+                if '3' in mapping:
+                    Config.PRICE_3_MONTHS = mapping['3']
+                    await db.set_setting('PRICE_3_MONTHS', str(mapping['3']))
+                context.user_data['awaiting_prices'] = False
+                await update.message.reply_text("✅ قیمت‌ها بروزرسانی شد.")
+            except Exception:
+                await update.message.reply_text("❌ فرمت اشتباهه. مثال: 1=10.00, 2=18.00, 3=25.00")
+            return
+        # Update payment info
+        if context.user_data.get('awaiting_payment'):
+            try:
+                parts = [p.strip() for p in text.split(',') if p.strip()]
+                kv = {}
+                for p in parts:
+                    if '=' not in p:
+                        raise ValueError('bad part')
+                    k, v = [x.strip() for x in p.split('=', 1)]
+                    kv[k.upper()] = v
+                if 'CARD' in kv:
+                    Config.BANK_CARD_NUMBER = kv['CARD']
+                    await db.set_setting('BANK_CARD_NUMBER', kv['CARD'])
+                if 'CRYPTO' in kv:
+                    Config.CRYPTO_WALLET_ADDRESS = kv['CRYPTO']
+                    await db.set_setting('CRYPTO_WALLET_ADDRESS', kv['CRYPTO'])
+                context.user_data['awaiting_payment'] = False
+                await update.message.reply_text("✅ اطلاعات پرداخت بروزرسانی شد.")
+            except Exception:
+                await update.message.reply_text("❌ فرمت اشتباهه. مثال: CARD=xxxx, CRYPTO=wallet")
     
     async def cancel_conversation(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Cancel current conversation"""
