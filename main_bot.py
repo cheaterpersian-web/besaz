@@ -54,12 +54,15 @@ class MainBot:
         self.application.add_handler(bot_creation_conv)
         
         payment_conv = ConversationHandler(
-            entry_points=[CallbackQueryHandler(self.start_payment, pattern="^payment_")],
+            entry_points=[
+                CallbackQueryHandler(self.start_payment, pattern="^payment_"),
+                CallbackQueryHandler(self.handle_submit_proof_callback, pattern="^submit_proof_")
+            ],
             states={
                 WAITING_FOR_PAYMENT_PROOF: [MessageHandler(filters.PHOTO | filters.TEXT, self.handle_payment_proof)],
             },
             fallbacks=[CommandHandler("cancel", self.cancel_conversation)],
-            per_message=False,
+            per_message=True,
         )
         self.application.add_handler(payment_conv)
 
