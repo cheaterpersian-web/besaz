@@ -88,13 +88,18 @@ class MainBot:
         
         # Check if user is in the locked channel
         try:
-            member = await context.bot.get_chat_member(Config.LOCKED_CHANNEL_ID, user.id)
-            if member.status in ['left', 'kicked']:
-                await update.message.reply_text(
-                    "🔒 برای استفاده از این ربات ابتدا باید در کانال ما عضو شوید.\\n"
-                    f"لطفاً عضو شوید: {Config.LOCKED_CHANNEL_ID}"
-                )
-                return
+            if Config.LOCKED_CHANNEL_ID:
+                member = await context.bot.get_chat_member(Config.LOCKED_CHANNEL_ID, user.id)
+                if member.status in ['left', 'kicked']:
+                    lock_text = (
+                        "🔒 برای استفاده از این ربات ابتدا باید در کانال ما عضو شوید.\n"
+                        f"لطفاً عضو شوید: {Config.LOCKED_CHANNEL_ID}"
+                    )
+                    if update.callback_query:
+                        await update.callback_query.edit_message_text(lock_text)
+                    else:
+                        await update.message.reply_text(lock_text)
+                    return
         except Exception as e:
             logger.error(f"Error checking channel membership: {e}")
         
@@ -113,11 +118,18 @@ class MainBot:
         
         reply_markup = InlineKeyboardMarkup(keyboard)
         
-        await update.message.reply_text(
-            welcome_text,
-            parse_mode=ParseMode.MARKDOWN,
-            reply_markup=reply_markup
-        )
+        if update.callback_query:
+            await update.callback_query.edit_message_text(
+                welcome_text,
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=reply_markup
+            )
+        else:
+            await update.message.reply_text(
+                welcome_text,
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=reply_markup
+            )
     
     async def help_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Help disabled."""
