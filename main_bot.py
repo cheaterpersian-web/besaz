@@ -245,6 +245,26 @@ class MainBot:
             await self.handle_admin_callback(update, context, data)
         elif data.startswith("admin_"):
             await self.handle_admin_callback(update, context, data)
+        elif data.startswith("delete_bot_"):
+            try:
+                bot_id = int(data.split("_")[-1])
+            except Exception:
+                await update.callback_query.answer("خطای حذف ربات", show_alert=True)
+                return
+            await self.prompt_delete_bot(update, context, bot_id)
+        elif data.startswith("confirm_delete_"):
+            try:
+                bot_id = int(data.split("_")[-1])
+            except Exception:
+                await update.callback_query.answer("خطای حذف ربات", show_alert=True)
+                return
+            await self.confirm_delete_bot(update, context, bot_id)
+        elif data.startswith("cancel_delete_"):
+            try:
+                bot_id = int(data.split("_")[-1])
+                await self.handle_bot_callback(update, context, f"bot_{bot_id}")
+            except Exception:
+                await self.show_user_bots(update, context, update.callback_query.from_user.id)
     
     async def start_bot_creation(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Start bot creation conversation"""
@@ -531,10 +551,16 @@ class MainBot:
                     text += f"🔴 {username_html}\n"
                     text += "وضعیت: بدون اشتراک\n\n"
                 
-                keyboard.append([InlineKeyboardButton(
-                    f"مدیریت @{bot['bot_username']}", 
-                    callback_data=f"bot_{bot['id']}"
-                )])
+                keyboard.append([
+                    InlineKeyboardButton(
+                        f"مدیریت @{bot['bot_username']}", 
+                        callback_data=f"bot_{bot['id']}"
+                    ),
+                    InlineKeyboardButton(
+                        "🗑️ حذف",
+                        callback_data=f"delete_bot_{bot['id']}"
+                    )
+                ])
             
             keyboard.append([InlineKeyboardButton("➕ ایجاد ربات جدید", callback_data="create_bot")])
         
@@ -701,7 +727,10 @@ class MainBot:
         else:
             keyboard.append([InlineKeyboardButton("💳 اشتراک", callback_data="subscribe")])
         
-        keyboard.append([InlineKeyboardButton("🔙 بازگشت به ربات‌های من", callback_data="my_bots")])
+        keyboard.append([
+            InlineKeyboardButton("🗑️ حذف ربات", callback_data=f"delete_bot_{bot_id}"),
+            InlineKeyboardButton("🔙 بازگشت به ربات‌های من", callback_data="my_bots")
+        ])
         reply_markup = InlineKeyboardMarkup(keyboard)
         
         await update.callback_query.edit_message_text(
@@ -709,6 +738,49 @@ class MainBot:
             parse_mode=ParseMode.MARKDOWN,
             reply_markup=reply_markup
         )
+
+    async def prompt_delete_bot(self, update: Update, context: ContextTypes.DEFAULT_TYPE, bot_id: int):
+        """Ask user to confirm deleting the bot."""
+        user_id = update.callback_query.from_user.id
+        bot = await db.get_bot(bot_id)
+        if not bot or bot['owner_id'] != user_id:
+            await update.callback_query.answer("دسترسی غیرمجاز", show_alert=True)
+            return
+        text = (
+            f"⚠️ آیا از حذف ربات @{bot['bot_username']} مطمئنی؟\n\n"
+            "این کار قابل بازگشت نیست و فایل‌های استقرار هم حذف می‌شن."
+        )
+        keyboard = [
+            [
+                InlineKeyboardButton("✅ بله، حذف کن", callback_data=f"confirm_delete_{bot_id}"),
+                InlineKeyboardButton("❌ خیر، انصراف", callback_data=f"cancel_delete_{bot_id}")
+            ]
+        ]
+        await update.callback_query.edit_message_text(
+            text,
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+
+    async def confirm_delete_bot(self, update: Update, context: ContextTypes.DEFAULT_TYPE, bot_id: int):
+        """Delete the bot after confirmation."""
+        user_id = update.callback_query.from_user.id
+        bot = await db.get_bot(bot_id)
+        if not bot or bot['owner_id'] != user_id:
+            await update.callback_query.answer("دسترسی غیرمجاز", show_alert=True)
+            return
+        # Stop and remove files
+        try:
+            await bot_manager.delete_bot(bot_id)
+        except Exception:
+            pass
+        # Remove from DB
+        ok = await db.delete_bot(bot_id, owner_id=user_id)
+        if ok:
+            await update.callback_query.edit_message_text("🗑️ ربات حذف شد.")
+            # Show updated list
+            await self.show_user_bots(update, context, user_id)
+        else:
+            await update.callback_query.edit_message_text("❌ حذف ربات ناموفق بود.")
     
     async def handle_admin_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE, data: str):
         """Handle admin panel callbacks"""

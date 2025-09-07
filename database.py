@@ -213,6 +213,30 @@ class Database:
             async with db.execute('SELECT * FROM bots ORDER BY created_at DESC') as cursor:
                 rows = await cursor.fetchall()
                 return [dict(row) for row in rows]
+
+    async def delete_bot(self, bot_id: int, owner_id: int) -> bool:
+        """Delete a bot and related data (subscriptions, payments referencing it).
+        Requires owner_id match to prevent deleting others' bots.
+        """
+        try:
+            async with aiosqlite.connect(self.db_path) as db:
+                db.row_factory = aiosqlite.Row
+                # Ensure ownership
+                async with db.execute('SELECT owner_id FROM bots WHERE id = ?', (bot_id,)) as cur:
+                    row = await cur.fetchone()
+                    if not row or int(row['owner_id']) != int(owner_id):
+                        return False
+                # Delete related subscriptions
+                await db.execute('DELETE FROM subscriptions WHERE bot_id = ?', (bot_id,))
+                # Null payments' bot_id to retain payment history
+                await db.execute('UPDATE payments SET bot_id = NULL WHERE bot_id = ?', (bot_id,))
+                # Delete the bot itself
+                await db.execute('DELETE FROM bots WHERE id = ?', (bot_id,))
+                await db.commit()
+                return True
+        except Exception as e:
+            print(f"Error deleting bot {bot_id}: {e}")
+            return False
     
     # Subscription operations
     async def add_subscription(self, bot_id: int, plan_type: str, duration_days: int) -> int:

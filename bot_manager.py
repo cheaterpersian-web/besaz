@@ -354,5 +354,22 @@ python-dotenv==1.0.1
             del self.running_bots[bot_id]
             await db.update_bot_status(bot_id, Config.BOT_STATUS_INACTIVE)
 
+    async def delete_bot(self, bot_id: int) -> bool:
+        """Stop a bot if running and remove its deployment directory."""
+        try:
+            # Stop if running
+            try:
+                await self.stop_bot(bot_id)
+            except Exception:
+                pass
+            # Remove files
+            bot_dir = os.path.join(self.deployment_dir, f"bot_{bot_id}")
+            if os.path.exists(bot_dir):
+                shutil.rmtree(bot_dir, ignore_errors=True)
+            return True
+        except Exception as e:
+            print(f"Error deleting bot files {bot_id}: {e}")
+            return False
+
 # Global bot manager instance
 bot_manager = BotManager()
