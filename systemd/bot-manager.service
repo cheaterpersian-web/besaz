@@ -4,10 +4,10 @@ After=network.target
 
 [Service]
 Type=simple
-User=botmanager
-Group=botmanager
+User=root
+Group=root
 WorkingDirectory=/opt/bot-manager
-ExecStart=/usr/bin/python3 /opt/bot-manager/run.py
+ExecStart=/opt/bot-manager/venv/bin/python /opt/bot-manager/run.py
 Restart=always
 RestartSec=10
 Environment=PYTHONPATH=/opt/bot-manager
@@ -23,7 +23,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/opt/bot-manager/data /opt/bot-manager/logs /opt/bot-manager/deployed_bots
+ReadWritePaths=/opt/bot-manager /var/log /var/tmp
 
 [Install]
 WantedBy=multi-user.target

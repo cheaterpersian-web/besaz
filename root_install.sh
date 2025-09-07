@@ -103,6 +103,16 @@ main() {
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     
     print_info "Script directory: $SCRIPT_DIR"
+    INSTALL_DIR="/opt/bot-manager"
+    print_info "Install directory: $INSTALL_DIR"
+    
+    # Prepare install directory and copy files
+    mkdir -p "$INSTALL_DIR"
+    if command -v rsync >/dev/null 2>&1; then
+        rsync -a --delete --exclude '.git' --exclude 'venv' --exclude '__pycache__' "$SCRIPT_DIR/" "$INSTALL_DIR/"
+    else
+        cp -a "$SCRIPT_DIR/." "$INSTALL_DIR/"
+    fi
     
     # Change to script directory
     cd "$SCRIPT_DIR"
@@ -203,7 +213,7 @@ main() {
     # Create .env file
     print_info "Creating configuration file..."
     
-    cat > "$SCRIPT_DIR/.env" << EOF
+    cat > "$INSTALL_DIR/.env" << EOF
 # Main Bot Configuration
 MAIN_BOT_TOKEN=$MAIN_BOT_TOKEN
 ADMIN_USER_ID=$ADMIN_USER_ID
@@ -215,7 +225,7 @@ DATABASE_URL=sqlite:///bot_manager.db
 
 # Bot Deployment Configuration
 BOT_REPO_URL=$BOT_REPO_URL
-BOT_DEPLOYMENT_DIR=$SCRIPT_DIR/deployed_bots
+BOT_DEPLOYMENT_DIR=$INSTALL_DIR/deployed_bots
 BOT_PYTHON_PATH=/usr/bin/python3
 
 # Payment Configuration
@@ -255,30 +265,30 @@ EOF
     
     # Create virtual environment
     print_info "Creating Python virtual environment..."
-    python3 -m venv "$SCRIPT_DIR/venv"
-    source "$SCRIPT_DIR/venv/bin/activate"
+    python3 -m venv "$INSTALL_DIR/venv"
+    source "$INSTALL_DIR/venv/bin/activate"
     
     # Upgrade pip
-    pip install --upgrade pip
+    pip install --upgrade pip setuptools wheel
     
     # Install requirements
     print_info "Installing Python packages..."
-    pip install -r requirements.txt
+    pip install -r "$INSTALL_DIR/requirements.txt"
     
     print_success "Python dependencies installed!"
     
     # Create necessary directories
     print_info "Creating directories..."
     
-    mkdir -p "$SCRIPT_DIR/data" "$SCRIPT_DIR/logs" "$SCRIPT_DIR/deployed_bots"
+    mkdir -p "$INSTALL_DIR/data" "$INSTALL_DIR/logs" "$INSTALL_DIR/deployed_bots"
     
     print_success "Directories created!"
     
     # Set permissions
     print_info "Setting permissions..."
     
-    chmod +x "$SCRIPT_DIR/run.py"
-    chmod 755 "$SCRIPT_DIR/data" "$SCRIPT_DIR/logs" "$SCRIPT_DIR/deployed_bots"
+    chmod +x "$INSTALL_DIR/run.py"
+    chmod 755 "$INSTALL_DIR/data" "$INSTALL_DIR/logs" "$INSTALL_DIR/deployed_bots"
     
     print_success "Permissions set!"
     
@@ -288,7 +298,7 @@ EOF
     python3 -c "
 import asyncio
 import sys
-sys.path.insert(0, '$SCRIPT_DIR')
+sys.path.insert(0, '$INSTALL_DIR')
 from database import db
 
 async def test_db():
@@ -317,7 +327,7 @@ sys.exit(0 if result else 1)
     python3 -c "
 import asyncio
 import sys
-sys.path.insert(0, '$SCRIPT_DIR')
+sys.path.insert(0, '$INSTALL_DIR')
 from telegram import Bot
 from config import Config
 
@@ -354,11 +364,11 @@ After=network.target
 Type=simple
 User=root
 Group=root
-WorkingDirectory=$SCRIPT_DIR
-ExecStart=$SCRIPT_DIR/venv/bin/python $SCRIPT_DIR/run.py
+WorkingDirectory=$INSTALL_DIR
+ExecStart=$INSTALL_DIR/venv/bin/python $INSTALL_DIR/run.py
 Restart=always
 RestartSec=10
-Environment=PYTHONPATH=$SCRIPT_DIR
+Environment=PYTHONPATH=$INSTALL_DIR
 Environment=PYTHONUNBUFFERED=1
 
 # Logging
@@ -371,7 +381,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=$SCRIPT_DIR/data $SCRIPT_DIR/logs $SCRIPT_DIR/deployed_bots
+ReadWritePaths=$INSTALL_DIR $INSTALL_DIR/data $INSTALL_DIR/logs $INSTALL_DIR/deployed_bots
 
 [Install]
 WantedBy=multi-user.target
@@ -388,7 +398,7 @@ EOF
     python3 -c "
 import asyncio
 import sys
-sys.path.insert(0, '$SCRIPT_DIR')
+sys.path.insert(0, '$INSTALL_DIR')
 from database import db
 
 async def add_admin():
@@ -426,8 +436,8 @@ sys.exit(0 if result else 1)
     echo "  • Bot Token: $MAIN_BOT_TOKEN"
     echo "  • Admin User ID: $ADMIN_USER_ID"
     echo "  • Channel: $LOCKED_CHANNEL_ID"
-    echo "  • Installation Directory: $SCRIPT_DIR"
-    echo "  • Configuration File: $SCRIPT_DIR/.env"
+    echo "  • Installation Directory: $INSTALL_DIR"
+    echo "  • Configuration File: $INSTALL_DIR/.env"
     echo ""
     
     print_info "Next Steps:"
@@ -448,13 +458,13 @@ sys.exit(0 if result else 1)
     echo ""
     
     print_info "Manual Start (if needed):"
-    echo "  cd $SCRIPT_DIR"
+    echo "  cd $INSTALL_DIR"
     echo "  source venv/bin/activate"
     echo "  python run.py"
     echo ""
     
     print_info "Configuration:"
-    echo "  • Edit $SCRIPT_DIR/.env to change settings"
+    echo "  • Edit $INSTALL_DIR/.env to change settings"
     echo "  • Restart service after changes: systemctl restart bot-manager"
     echo ""
     

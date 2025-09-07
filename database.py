@@ -5,7 +5,7 @@ from typing import List, Optional, Dict, Any
 from config import Config
 
 class Database:
-    def __init__(self, db_path: str = "bot_manager.db"):
+    def __init__(self, db_path: str = "data/bot_manager.db"):
         self.db_path = db_path
     
     async def init_db(self):

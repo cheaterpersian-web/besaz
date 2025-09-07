@@ -17,11 +17,12 @@ from config import Config
 
 def setup_logging():
     """Setup logging configuration"""
+    os.makedirs('logs', exist_ok=True)
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
         handlers=[
-            logging.FileHandler('bot_manager.log'),
+            logging.FileHandler(os.path.join('logs', 'bot_manager.log')),
             logging.StreamHandler(sys.stdout)
         ]
     )

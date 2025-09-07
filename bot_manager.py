@@ -13,6 +13,7 @@ class BotManager:
     def __init__(self):
         self.deployment_dir = Config.BOT_DEPLOYMENT_DIR
         self.repo_url = Config.BOT_REPO_URL
+        # Prefer venv python if present inside deployment dir; fallback to configured path
         self.python_path = Config.BOT_PYTHON_PATH
         self.running_bots = {}  # bot_id -> process_info
         
@@ -30,11 +31,11 @@ class BotManager:
             if os.path.exists(bot_dir):
                 shutil.rmtree(bot_dir)
             
-            # Clone the repository
-            git.Repo.clone_from(self.repo_url, bot_dir)
-            
-            # Create a simple bot template if the repo doesn't exist
-            if not os.path.exists(os.path.join(bot_dir, "bot.py")):
+            # Clone the repository; if fails, fall back to local template
+            try:
+                git.Repo.clone_from(self.repo_url, bot_dir)
+            except Exception:
+                # Fallback: create minimal template locally
                 await self.create_bot_template(bot_dir)
             
             return True
@@ -154,16 +155,20 @@ python-dotenv==1.0.0
             with open(env_file, "w") as f:
                 f.write(f"BOT_TOKEN={bot_token}\\n")
             
+            # Determine python path: use bot-specific venv if exists
+            venv_python = os.path.join(bot_dir, 'venv', 'bin', 'python')
+            python_exec = venv_python if os.path.exists(venv_python) else self.python_path
+
             # Install dependencies
             requirements_file = os.path.join(bot_dir, "requirements.txt")
             if os.path.exists(requirements_file):
                 subprocess.run([
-                    self.python_path, "-m", "pip", "install", "-r", requirements_file
+                    python_exec, "-m", "pip", "install", "-r", requirements_file
                 ], cwd=bot_dir, check=True)
             
             # Start the bot process
             process = subprocess.Popen([
-                self.python_path, "bot.py"
+                python_exec, "bot.py"
             ], cwd=bot_dir, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             
             # Store process info
