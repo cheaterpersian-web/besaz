@@ -149,6 +149,14 @@ EOF
 main() {
     print_header "🤖 Telegram Bot Manager System - Automated Installation"
     
+    # Get the directory where the script is located
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    
+    print_info "Script directory: $SCRIPT_DIR"
+    
+    # Change to script directory
+    cd "$SCRIPT_DIR"
+    
     print_info "This script will guide you through the complete setup process."
     print_info "Make sure you have the following ready:"
     echo "  • Bot token from @BotFather"
@@ -266,7 +274,7 @@ main() {
     # Create .env file
     print_step "Creating configuration file..."
     
-    cat > .env << EOF
+    cat > "$SCRIPT_DIR/.env" << EOF
 # Main Bot Configuration
 MAIN_BOT_TOKEN=$MAIN_BOT_TOKEN
 ADMIN_USER_ID=$ADMIN_USER_ID
@@ -318,8 +326,8 @@ EOF
     
     # Create virtual environment
     print_info "Creating Python virtual environment..."
-    python3 -m venv venv
-    source venv/bin/activate
+    python3 -m venv "$SCRIPT_DIR/venv"
+    source "$SCRIPT_DIR/venv/bin/activate"
     
     # Upgrade pip
     pip install --upgrade pip
@@ -333,15 +341,15 @@ EOF
     # Create necessary directories
     print_step "Creating directories..."
     
-    mkdir -p data logs deployed_bots
+    mkdir -p "$SCRIPT_DIR/data" "$SCRIPT_DIR/logs" "$SCRIPT_DIR/deployed_bots"
     
     print_success "Directories created!"
     
     # Set permissions
     print_step "Setting permissions..."
     
-    chmod +x run.py
-    chmod 755 data logs deployed_bots
+    chmod +x "$SCRIPT_DIR/run.py"
+    chmod 755 "$SCRIPT_DIR/data" "$SCRIPT_DIR/logs" "$SCRIPT_DIR/deployed_bots"
     
     print_success "Permissions set!"
     
@@ -351,7 +359,7 @@ EOF
     python3 -c "
 import asyncio
 import sys
-sys.path.insert(0, '.')
+sys.path.insert(0, '$SCRIPT_DIR')
 from database import db
 
 async def test_db():
@@ -380,7 +388,7 @@ sys.exit(0 if result else 1)
     python3 -c "
 import asyncio
 import sys
-sys.path.insert(0, '.')
+sys.path.insert(0, '$SCRIPT_DIR')
 from telegram import Bot
 from config import Config
 
@@ -417,11 +425,11 @@ After=network.target
 Type=simple
 User=$USER
 Group=$USER
-WorkingDirectory=$(pwd)
-ExecStart=$(pwd)/venv/bin/python $(pwd)/run.py
+WorkingDirectory=$SCRIPT_DIR
+ExecStart=$SCRIPT_DIR/venv/bin/python $SCRIPT_DIR/run.py
 Restart=always
 RestartSec=10
-Environment=PYTHONPATH=$(pwd)
+Environment=PYTHONPATH=$SCRIPT_DIR
 Environment=PYTHONUNBUFFERED=1
 
 # Logging
@@ -434,7 +442,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=$(pwd)/data $(pwd)/logs $(pwd)/deployed_bots
+ReadWritePaths=$SCRIPT_DIR/data $SCRIPT_DIR/logs $SCRIPT_DIR/deployed_bots
 
 [Install]
 WantedBy=multi-user.target
@@ -451,7 +459,7 @@ EOF
     python3 -c "
 import asyncio
 import sys
-sys.path.insert(0, '.')
+sys.path.insert(0, '$SCRIPT_DIR')
 from database import db
 
 async def add_admin():
@@ -489,8 +497,8 @@ sys.exit(0 if result else 1)
     echo "  • Bot Token: $MAIN_BOT_TOKEN"
     echo "  • Admin User ID: $ADMIN_USER_ID"
     echo "  • Channel: $LOCKED_CHANNEL_ID"
-    echo "  • Installation Directory: $(pwd)"
-    echo "  • Configuration File: $(pwd)/.env"
+    echo "  • Installation Directory: $SCRIPT_DIR"
+    echo "  • Configuration File: $SCRIPT_DIR/.env"
     echo ""
     
     print_info "Next Steps:"
@@ -511,12 +519,13 @@ sys.exit(0 if result else 1)
     echo ""
     
     print_info "Manual Start (if needed):"
+    echo "  cd $SCRIPT_DIR"
     echo "  source venv/bin/activate"
     echo "  python run.py"
     echo ""
     
     print_info "Configuration:"
-    echo "  • Edit $(pwd)/.env to change settings"
+    echo "  • Edit $SCRIPT_DIR/.env to change settings"
     echo "  • Restart service after changes: sudo systemctl restart bot-manager"
     echo ""
     

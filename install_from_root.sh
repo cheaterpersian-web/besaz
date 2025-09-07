@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# Quick Setup Script for Telegram Bot Manager System
-# This script allows you to quickly configure the system with minimal input
+# Telegram Bot Manager System - Root Installation Script
+# This script can be run from anywhere and will install the system
 
 set -e
 
@@ -10,6 +10,8 @@ GREEN='\033[0;32m'
 RED='\033[0;31m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
+PURPLE='\033[0;35m'
+CYAN='\033[0;36m'
 NC='\033[0m'
 
 print_color() {
@@ -18,9 +20,9 @@ print_color() {
 
 print_header() {
     echo ""
-    print_color $BLUE "=========================================="
-    print_color $BLUE "$1"
-    print_color $BLUE "=========================================="
+    print_color $CYAN "=========================================="
+    print_color $CYAN "$1"
+    print_color $CYAN "=========================================="
     echo ""
 }
 
@@ -85,32 +87,51 @@ validate_channel_id() {
 
 # Main function
 main() {
-    print_header "🚀 Quick Setup - Telegram Bot Manager System"
+    print_header "🚀 Telegram Bot Manager System - Root Installation"
     
-    # Get the directory where the script is located
-    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    
-    print_info "Script directory: $SCRIPT_DIR"
-    
-    # Change to script directory
-    cd "$SCRIPT_DIR"
-    
-    print_info "This script will quickly configure your bot manager system."
-    print_info "You only need to provide the essential information."
+    print_info "This script will install the Telegram Bot Manager System from anywhere."
+    print_info "It will download the latest version and set up everything automatically."
     echo ""
     
-    # Check if .env already exists
-    if [ -f .env ]; then
-        print_warning ".env file already exists!"
+    # Get installation directory
+    get_input "Enter installation directory" INSTALL_DIR "/opt/bot-manager"
+    
+    # Check if directory exists
+    if [ -d "$INSTALL_DIR" ]; then
+        print_warning "Directory $INSTALL_DIR already exists!"
         read -p "Do you want to overwrite it? (y/n): " overwrite
         if [[ ! $overwrite =~ ^[Yy]$ ]]; then
-            print_info "Setup cancelled."
+            print_info "Installation cancelled."
             exit 0
         fi
+        rm -rf "$INSTALL_DIR"
     fi
     
-    # Get essential configuration
-    echo ""
+    # Create installation directory
+    print_info "Creating installation directory: $INSTALL_DIR"
+    sudo mkdir -p "$INSTALL_DIR"
+    sudo chown $USER:$USER "$INSTALL_DIR"
+    
+    # Download the system
+    print_info "Downloading Telegram Bot Manager System..."
+    
+    # Check if git is available
+    if command -v git &> /dev/null; then
+        print_info "Cloning from GitHub..."
+        git clone https://github.com/your-repo/telegram-bot-manager.git "$INSTALL_DIR"
+    else
+        print_info "Git not available, downloading zip file..."
+        # Download zip file (you would need to provide a zip download URL)
+        print_error "Git is required for installation. Please install git first."
+        exit 1
+    fi
+    
+    # Change to installation directory
+    cd "$INSTALL_DIR"
+    
+    print_success "System downloaded successfully!"
+    
+    # Get configuration
     print_info "Please provide the following information:"
     echo ""
     
@@ -156,7 +177,7 @@ main() {
     # Create .env file
     print_info "Creating configuration file..."
     
-    cat > "$SCRIPT_DIR/.env" << EOF
+    cat > "$INSTALL_DIR/.env" << EOF
 # Main Bot Configuration
 MAIN_BOT_TOKEN=$MAIN_BOT_TOKEN
 ADMIN_USER_ID=$ADMIN_USER_ID
@@ -168,7 +189,7 @@ DATABASE_URL=sqlite:///bot_manager.db
 
 # Bot Deployment Configuration
 BOT_REPO_URL=https://github.com/your-username/telegram-bot-template.git
-BOT_DEPLOYMENT_DIR=/opt/bot-manager/deployed_bots
+BOT_DEPLOYMENT_DIR=$INSTALL_DIR/deployed_bots
 BOT_PYTHON_PATH=/usr/bin/python3
 
 # Payment Configuration
@@ -203,6 +224,23 @@ EOF
     
     print_success "Configuration file created!"
     
+    # Install system dependencies
+    print_info "Installing system dependencies..."
+    sudo apt-get update
+    sudo apt-get install -y python3 python3-pip python3-venv git
+    
+    # Install Python dependencies
+    print_info "Installing Python dependencies..."
+    python3 -m venv "$INSTALL_DIR/venv"
+    source "$INSTALL_DIR/venv/bin/activate"
+    pip install --upgrade pip
+    pip install -r "$INSTALL_DIR/requirements.txt"
+    
+    # Create directories
+    mkdir -p "$INSTALL_DIR/data" "$INSTALL_DIR/logs" "$INSTALL_DIR/deployed_bots"
+    chmod 755 "$INSTALL_DIR/data" "$INSTALL_DIR/logs" "$INSTALL_DIR/deployed_bots"
+    chmod +x "$INSTALL_DIR/run.py"
+    
     # Test configuration
     print_info "Testing configuration..."
     
@@ -210,7 +248,7 @@ EOF
     python3 -c "
 import asyncio
 import sys
-sys.path.insert(0, '$SCRIPT_DIR')
+sys.path.insert(0, '$INSTALL_DIR')
 from telegram import Bot
 
 async def test_bot():
@@ -238,7 +276,7 @@ sys.exit(0 if result else 1)
     python3 -c "
 import asyncio
 import sys
-sys.path.insert(0, '$SCRIPT_DIR')
+sys.path.insert(0, '$INSTALL_DIR')
 from database import db
 
 async def test_db():
@@ -265,7 +303,7 @@ sys.exit(0 if result else 1)
     python3 -c "
 import asyncio
 import sys
-sys.path.insert(0, '$SCRIPT_DIR')
+sys.path.insert(0, '$INSTALL_DIR')
 from database import db
 
 async def add_admin():
@@ -293,42 +331,115 @@ sys.exit(0 if result else 1)
         print_warning "Admin user may already exist"
     fi
     
-    # Create directories
-    mkdir -p "$SCRIPT_DIR/data" "$SCRIPT_DIR/logs" "$SCRIPT_DIR/deployed_bots"
-    chmod 755 "$SCRIPT_DIR/data" "$SCRIPT_DIR/logs" "$SCRIPT_DIR/deployed_bots"
+    # Create systemd service
+    print_info "Creating systemd service..."
     
-    print_success "Directories created!"
+    sudo tee /etc/systemd/system/bot-manager.service > /dev/null << EOF
+[Unit]
+Description=Telegram Bot Manager System
+After=network.target
+
+[Service]
+Type=simple
+User=$USER
+Group=$USER
+WorkingDirectory=$INSTALL_DIR
+ExecStart=$INSTALL_DIR/venv/bin/python $INSTALL_DIR/run.py
+Restart=always
+RestartSec=10
+Environment=PYTHONPATH=$INSTALL_DIR
+Environment=PYTHONUNBUFFERED=1
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=bot-manager
+
+# Security
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=$INSTALL_DIR/data $INSTALL_DIR/logs $INSTALL_DIR/deployed_bots
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    
+    sudo systemctl daemon-reload
+    
+    print_success "Systemd service created!"
     
     # Final message
-    print_header "🎉 Quick Setup Complete!"
+    print_header "🎉 Installation Complete!"
     
-    print_success "Your bot manager system is configured and ready!"
+    print_success "Telegram Bot Manager System has been installed successfully!"
     echo ""
     
-    print_info "Configuration Summary:"
-    echo "  • Bot: $MAIN_BOT_TOKEN"
-    echo "  • Admin: $ADMIN_USER_ID"
+    print_info "Installation Summary:"
+    echo "  • Installation Directory: $INSTALL_DIR"
+    echo "  • Bot Token: $MAIN_BOT_TOKEN"
+    echo "  • Admin User ID: $ADMIN_USER_ID"
     echo "  • Channel: $LOCKED_CHANNEL_ID"
-    echo "  • Prices: $PRICE_1_MONTH, $PRICE_2_MONTHS, $PRICE_3_MONTHS"
+    echo "  • Configuration File: $INSTALL_DIR/.env"
     echo ""
     
-    print_info "To start the system:"
-    echo "  cd $SCRIPT_DIR"
-    echo "  python3 run.py"
+    print_info "Next Steps:"
+    echo "  1. Start the system:"
+    echo "     sudo systemctl start bot-manager"
+    echo ""
+    echo "  2. Enable auto-start:"
+    echo "     sudo systemctl enable bot-manager"
+    echo ""
+    echo "  3. Check status:"
+    echo "     sudo systemctl status bot-manager"
+    echo ""
+    echo "  4. View logs:"
+    echo "     sudo journalctl -u bot-manager -f"
+    echo ""
+    echo "  5. Test your bot:"
+    echo "     Send /start to your bot on Telegram"
     echo ""
     
-    print_info "To install as service:"
-    echo "  cd $SCRIPT_DIR"
-    echo "  ./auto_install.sh"
+    print_info "Manual Start (if needed):"
+    echo "  cd $INSTALL_DIR"
+    echo "  source venv/bin/activate"
+    echo "  python run.py"
     echo ""
     
-    print_warning "Important:"
+    print_info "Configuration:"
+    echo "  • Edit $INSTALL_DIR/.env to change settings"
+    echo "  • Restart service after changes: sudo systemctl restart bot-manager"
+    echo ""
+    
+    print_warning "Important Notes:"
     echo "  • Make sure your bot is added to the channel: $LOCKED_CHANNEL_ID"
-    echo "  • Test with /start command"
-    echo "  • Check payment information"
+    echo "  • Test the bot with /start command"
+    echo "  • Check that users can join the channel"
+    echo "  • Verify payment information is correct"
     echo ""
     
-    print_success "Setup completed! 🚀"
+    # Ask if user wants to start the service
+    echo ""
+    read -p "Do you want to start the service now? (y/n): " start_service
+    
+    if [[ $start_service =~ ^[Yy]$ ]]; then
+        print_info "Starting service..."
+        sudo systemctl start bot-manager
+        sudo systemctl enable bot-manager
+        
+        sleep 3
+        
+        if sudo systemctl is-active --quiet bot-manager; then
+            print_success "Service started successfully!"
+            print_info "You can now test your bot by sending /start to it on Telegram"
+        else
+            print_error "Service failed to start. Check logs with: sudo journalctl -u bot-manager"
+        fi
+    fi
+    
+    echo ""
+    print_success "Installation completed! Enjoy your new bot manager system! 🎉"
 }
 
 # Run main function
