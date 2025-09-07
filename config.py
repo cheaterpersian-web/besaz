@@ -15,7 +15,9 @@ class Config:
     
     # Bot Deployment Configuration
     BOT_REPO_URL = os.getenv('BOT_REPO_URL', 'https://github.com/your-username/telegram-bot-template.git')
-    BOT_DEPLOYMENT_DIR = os.getenv('BOT_DEPLOYMENT_DIR', '/workspace/deployed_bots')
+    # Default to a folder named 'deployed bot' inside the project directory (supports space as user requested)
+    _BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    BOT_DEPLOYMENT_DIR = os.getenv('BOT_DEPLOYMENT_DIR', os.path.join(_BASE_DIR, 'deployed bot'))
     BOT_PYTHON_PATH = os.getenv('BOT_PYTHON_PATH', '/usr/bin/python3')
     
     # Payment Configuration
