@@ -42,17 +42,14 @@ class MainBot:
         self.application.add_handler(CommandHandler("users", self.users_command))
         self.application.add_handler(CommandHandler("broadcast", self.broadcast_command))
         
-        # Callback query handlers
-        self.application.add_handler(CallbackQueryHandler(self.handle_callback))
-        
-        # Conversation handlers
+        # Conversation handlers (must be added BEFORE catch-all callback handler)
         bot_creation_conv = ConversationHandler(
             entry_points=[CallbackQueryHandler(self.start_bot_creation, pattern="^create_bot$")],
             states={
                 WAITING_FOR_BOT_TOKEN: [MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_bot_token)],
             },
             fallbacks=[CommandHandler("cancel", self.cancel_conversation)],
-            per_message=False,
+            per_message=True,
         )
         self.application.add_handler(bot_creation_conv)
         
@@ -65,6 +62,9 @@ class MainBot:
             per_message=False,
         )
         self.application.add_handler(payment_conv)
+
+        # Callback query handlers (catch-all) – add AFTER conversations
+        self.application.add_handler(CallbackQueryHandler(self.handle_callback))
 
         # Generic text handler to capture admin inline edits
         self.application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_text_messages))
