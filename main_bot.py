@@ -99,26 +99,15 @@ class MainBot:
         except Exception as e:
             logger.error(f"Error checking channel membership: {e}")
         
-        # Welcome message
-        welcome_text = f"""
-🤖 **به سیستم مدیریت ربات خوش آمدید!**
-
-سلام {user.first_name}! من دستیار مدیریت ربات شما هستم.
-
-**قابلیت‌های من:**
-• ایجاد و مدیریت ربات‌های تلگرام شما
-• مدیریت اشتراک‌ها و پرداخت‌ها
-• نظارت بر وضعیت و عملکرد ربات‌ها
-• کنترل‌های ادمین (اگر ادمین هستید)
-
-از /help برای دیدن تمام دستورات استفاده کنید.
-        """
+        # Welcome message (concise, friendly)
+        welcome_text = f"سلام {user.first_name} 👋\n\nاز دکمه‌های زیر استفاده کن.\n\nبرای اطلاعیه‌ها حتماً عضو کانال شو: @wingsbotcr"
         
         keyboard = [
             [InlineKeyboardButton("📋 ربات‌های من", callback_data="my_bots")],
             [InlineKeyboardButton("➕ ایجاد ربات جدید", callback_data="create_bot")],
             [InlineKeyboardButton("💳 اشتراک", callback_data="subscribe")],
-            [InlineKeyboardButton("❓ راهنما", callback_data="help")]
+            [InlineKeyboardButton("❓ راهنما", callback_data="help")],
+            [InlineKeyboardButton("📣 کانال", url="https://t.me/wingsbotcr")]
         ]
         
         if is_admin:
