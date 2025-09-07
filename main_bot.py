@@ -439,7 +439,10 @@ Click on a plan to proceed with payment.
         all_bots = await db.get_all_bots()
         pending_payments = await db.get_pending_payments()
         
-        active_bots = sum(1 for bot in all_bots if await db.is_subscription_active(bot['id']))
+        active_bots = 0
+        for bot in all_bots:
+            if await db.is_subscription_active(bot['id']):
+                active_bots += 1
         
         text = f"""
 ⚙️ **پنل ادمین**
