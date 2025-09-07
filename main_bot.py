@@ -265,6 +265,14 @@ class MainBot:
                 await self.handle_bot_callback(update, context, f"bot_{bot_id}")
             except Exception:
                 await self.show_user_bots(update, context, update.callback_query.from_user.id)
+        elif data == "setup_panel":
+            await self.show_setup_panel(update, context)
+        elif data == "system_stats":
+            await self.show_system_stats(update, context)
+        elif data == "restart_all_bots":
+            await self.handle_restart_all_bots(update, context)
+        elif data == "cleanup_expired":
+            await self.handle_cleanup_expired(update, context)
     
     async def start_bot_creation(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Start bot creation conversation"""
@@ -992,21 +1000,62 @@ class MainBot:
 • آدرس: {Config.BOT_REPO_URL}
 • مسیر استقرار: {Config.BOT_DEPLOYMENT_DIR}
         """
-        
         keyboard = [
             [InlineKeyboardButton("🔄 راه‌اندازی مجدد همه ربات‌ها", callback_data="restart_all_bots")],
             [InlineKeyboardButton("🧹 پاکسازی ربات‌های منقضی", callback_data="cleanup_expired")],
             [InlineKeyboardButton("📊 آمار سیستم", callback_data="system_stats")],
             [InlineKeyboardButton("🔙 بازگشت به پنل ادمین", callback_data="admin_panel")]
         ]
-        
         reply_markup = InlineKeyboardMarkup(keyboard)
         
-        await update.message.reply_text(
+        if update.callback_query:
+            await update.callback_query.edit_message_text(
+                text,
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=reply_markup
+            )
+        else:
+            await update.message.reply_text(
+                text,
+                parse_mode=ParseMode.MARKDOWN,
+                reply_markup=reply_markup
+            )
+
+    async def show_system_stats(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Show system statistics in setup panel"""
+        all_bots = await db.get_all_bots()
+        active_bots = 0
+        running_bots = 0
+        for bot in all_bots:
+            if await db.is_subscription_active(bot['id']):
+                active_bots += 1
+            if await bot_manager.is_bot_running(bot['id']):
+                running_bots += 1
+        text = (
+            "📊 **آمار سیستم**\n\n"
+            f"• کل کاربران: -\n"
+            f"• کل ربات‌ها: {len(all_bots)}\n"
+            f"• ربات‌های دارای اشتراک فعال: {active_bots}\n"
+            f"• ربات‌های در حال اجرا: {running_bots}\n"
+        )
+        keyboard = [[InlineKeyboardButton("🔙 بازگشت", callback_data="setup_panel")]]
+        await update.callback_query.edit_message_text(
             text,
             parse_mode=ParseMode.MARKDOWN,
-            reply_markup=reply_markup
+            reply_markup=InlineKeyboardMarkup(keyboard)
         )
+
+    async def handle_restart_all_bots(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Restart all bots from setup panel"""
+        await bot_manager.restart_all_bots()
+        await update.callback_query.answer("در حال راه‌اندازی مجدد ربات‌ها", show_alert=False)
+        await self.show_setup_panel(update, context)
+
+    async def handle_cleanup_expired(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Cleanup expired bots from setup panel"""
+        await bot_manager.cleanup_expired_bots()
+        await update.callback_query.answer("پاکسازی انجام شد", show_alert=False)
+        await self.show_setup_panel(update, context)
 
     async def prompt_update_prices(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Prompt admin to send new prices in one line"""
