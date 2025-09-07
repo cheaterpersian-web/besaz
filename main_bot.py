@@ -59,7 +59,7 @@ class MainBot:
                 CallbackQueryHandler(self.handle_submit_proof_callback, pattern="^submit_proof_")
             ],
             states={
-                WAITING_FOR_PAYMENT_PROOF: [MessageHandler(filters.PHOTO | filters.TEXT, self.handle_payment_proof)],
+                WAITING_FOR_PAYMENT_PROOF: [MessageHandler((filters.PHOTO | filters.Document.ALL | (filters.TEXT & ~filters.COMMAND)), self.handle_payment_proof)],
             },
             fallbacks=[CommandHandler("cancel", self.cancel_conversation)],
             per_message=True,
