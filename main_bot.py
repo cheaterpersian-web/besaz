@@ -93,8 +93,8 @@ class MainBot:
             member = await context.bot.get_chat_member(Config.LOCKED_CHANNEL_ID, user.id)
             if member.status in ['left', 'kicked']:
                 await update.message.reply_text(
-                    "🔒 You must join our channel first to use this bot.\\n"
-                    f"Please join: {Config.LOCKED_CHANNEL_ID}"
+                    "🔒 برای استفاده از این ربات ابتدا باید در کانال ما عضو شوید.\\n"
+                    f"لطفاً عضو شوید: {Config.LOCKED_CHANNEL_ID}"
                 )
                 return
         except Exception as e:
@@ -102,28 +102,28 @@ class MainBot:
         
         # Welcome message
         welcome_text = f"""
-🤖 **Welcome to Bot Manager System!**
+🤖 **به سیستم مدیریت ربات خوش آمدید!**
 
-Hello {user.first_name}! I'm your bot management assistant.
+سلام {user.first_name}! من دستیار مدیریت ربات شما هستم.
 
-**What I can do:**
-• Create and manage your own Telegram bots
-• Handle subscriptions and payments
-• Monitor bot status and performance
-• Provide admin controls (if you're an admin)
+**قابلیت‌های من:**
+• ایجاد و مدیریت ربات‌های تلگرام شما
+• مدیریت اشتراک‌ها و پرداخت‌ها
+• نظارت بر وضعیت و عملکرد ربات‌ها
+• کنترل‌های ادمین (اگر ادمین هستید)
 
-Use /help to see all available commands.
+از /help برای دیدن تمام دستورات استفاده کنید.
         """
         
         keyboard = [
-            [InlineKeyboardButton("📋 My Bots", callback_data="my_bots")],
-            [InlineKeyboardButton("➕ Create New Bot", callback_data="create_bot")],
-            [InlineKeyboardButton("💳 Subscribe", callback_data="subscribe")],
-            [InlineKeyboardButton("❓ Help", callback_data="help")]
+            [InlineKeyboardButton("📋 ربات‌های من", callback_data="my_bots")],
+            [InlineKeyboardButton("➕ ایجاد ربات جدید", callback_data="create_bot")],
+            [InlineKeyboardButton("💳 اشتراک", callback_data="subscribe")],
+            [InlineKeyboardButton("❓ راهنما", callback_data="help")]
         ]
         
         if is_admin:
-            keyboard.append([InlineKeyboardButton("⚙️ Admin Panel", callback_data="admin_panel")])
+            keyboard.append([InlineKeyboardButton("⚙️ پنل ادمین", callback_data="admin_panel")])
         
         reply_markup = InlineKeyboardMarkup(keyboard)
         
@@ -184,7 +184,7 @@ Need help? Contact the admin!
         user_id = update.effective_user.id
         
         if not await db.is_admin(user_id):
-            await update.message.reply_text("❌ Access denied. Admin privileges required.")
+            await update.message.reply_text("❌ دسترسی رد شد. دسترسی ادمین مورد نیاز است.")
             return
         
         await self.show_admin_panel(update, context)
