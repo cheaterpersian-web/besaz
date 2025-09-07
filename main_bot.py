@@ -16,6 +16,7 @@ from payment_handler import payment_handler
 from monitor import monitor
 from error_handler import handle_telegram_errors
 from logger import logger
+import os
 
 # Conversation states
 WAITING_FOR_BOT_TOKEN, WAITING_FOR_PAYMENT_PROOF = range(2)
@@ -64,6 +65,9 @@ class MainBot:
             per_message=False,
         )
         self.application.add_handler(payment_conv)
+
+        # Generic text handler to capture admin inline edits
+        self.application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_text_messages))
     
     @handle_telegram_errors
     async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -601,6 +605,10 @@ class MainBot:
             await self.show_admin_settings(update, context)
         elif data == "admin_broadcast":
             await self.show_broadcast_panel(update, context)
+        elif data == "update_prices":
+            await self.prompt_update_prices(update, context)
+        elif data == "update_payment_info":
+            await self.prompt_update_payment_info(update, context)
     
     async def show_pending_payments(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Show pending payments for admin"""
@@ -701,9 +709,9 @@ class MainBot:
         )
         
         keyboard = [
-            [InlineKeyboardButton("💰 Update Prices", callback_data="update_prices")],
-            [InlineKeyboardButton("💳 Update Payment Info", callback_data="update_payment_info")],
-            [InlineKeyboardButton("🔙 Back to Admin Panel", callback_data="admin_panel")]
+            [InlineKeyboardButton("💰 بروزرسانی قیمت‌ها", callback_data="update_prices")],
+            [InlineKeyboardButton("💳 بروزرسانی اطلاعات پرداخت", callback_data="update_payment_info")],
+            [InlineKeyboardButton("🔙 بازگشت به پنل ادمین", callback_data="admin_panel")]
         ]
         
         reply_markup = InlineKeyboardMarkup(keyboard)
@@ -716,9 +724,9 @@ class MainBot:
     
     async def show_broadcast_panel(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Show broadcast panel for admin"""
-        text = "📢 **Broadcast Panel**\\n\\nBroadcast functionality will be implemented here."
+        text = "📢 **ارسال همگانی**\\n\\nاین بخش به‌زودی تکمیل می‌شه."
         
-        keyboard = [[InlineKeyboardButton("🔙 Back to Admin Panel", callback_data="admin_panel")]]
+        keyboard = [[InlineKeyboardButton("🔙 بازگشت به پنل ادمین", callback_data="admin_panel")]]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
         await update.callback_query.edit_message_text(
@@ -730,27 +738,27 @@ class MainBot:
     async def show_setup_panel(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Show setup panel for admin"""
         text = f"""
-⚙️ **Bot Setup Panel**
+⚙️ **تنظیمات اولیه**
 
-**Current Configuration:**
-• Main Bot Token: {'✅ Set' if Config.MAIN_BOT_TOKEN else '❌ Not Set'}
-• Admin User ID: {'✅ Set' if Config.ADMIN_USER_ID else '❌ Not Set'}
-• Main Bot ID: {'✅ Set' if Config.MAIN_BOT_ID else '❌ Not Set'}
-• Locked Channel: {'✅ Set' if Config.LOCKED_CHANNEL_ID else '❌ Not Set'}
+**پیکربندی فعلی:**
+• توکن ربات اصلی: {'✅ ثبت شده' if Config.MAIN_BOT_TOKEN else '❌ ثبت نشده'}
+• آیدی عددی ادمین: {'✅ ثبت شده' if Config.ADMIN_USER_ID else '❌ ثبت نشده'}
+• آیدی ربات اصلی: {'✅ ثبت شده' if Config.MAIN_BOT_ID else '❌ ثبت نشده'}
+• کانال قفل‌شده: {'✅ ثبت شده' if Config.LOCKED_CHANNEL_ID else '❌ ثبت نشده'}
 
-**Database:**
-• Status: {'✅ Connected' if await db.init_db() else '❌ Error'}
+**دیتابیس:**
+• وضعیت: ✅ آماده
 
-**Bot Repository:**
-• URL: {Config.BOT_REPO_URL}
-• Deployment Dir: {Config.BOT_DEPLOYMENT_DIR}
+**سورس ربات‌ها:**
+• آدرس: {Config.BOT_REPO_URL}
+• مسیر استقرار: {Config.BOT_DEPLOYMENT_DIR}
         """
         
         keyboard = [
-            [InlineKeyboardButton("🔄 Restart All Bots", callback_data="restart_all_bots")],
-            [InlineKeyboardButton("🧹 Cleanup Expired Bots", callback_data="cleanup_expired")],
-            [InlineKeyboardButton("📊 System Stats", callback_data="system_stats")],
-            [InlineKeyboardButton("🔙 Back to Admin Panel", callback_data="admin_panel")]
+            [InlineKeyboardButton("🔄 راه‌اندازی مجدد همه ربات‌ها", callback_data="restart_all_bots")],
+            [InlineKeyboardButton("🧹 پاکسازی ربات‌های منقضی", callback_data="cleanup_expired")],
+            [InlineKeyboardButton("📊 آمار سیستم", callback_data="system_stats")],
+            [InlineKeyboardButton("🔙 بازگشت به پنل ادمین", callback_data="admin_panel")]
         ]
         
         reply_markup = InlineKeyboardMarkup(keyboard)
