@@ -269,7 +269,7 @@ class MainBot:
         elif data.startswith("method_"):
             await self.handle_payment_method_callback(update, context, data)
         elif data.startswith("submit_proof_"):
-            await self.handle_submit_proof_callback(update, context, data)
+            await self.handle_submit_proof_callback(update, context)
         elif data.startswith("admin_"):
             await self.handle_admin_callback(update, context, data)
     
@@ -541,8 +541,9 @@ class MainBot:
         """Handle payment proof submission"""
         return await payment_handler.handle_payment_proof(update, context)
     
-    async def handle_submit_proof_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE, data: str):
+    async def handle_submit_proof_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle payment proof submission callback: submit_proof_<method>_<plan_type>_<bot_id>"""
+        data = update.callback_query.data
         parts = data.split("_")
         if len(parts) >= 6:
             payment_method = parts[2]
