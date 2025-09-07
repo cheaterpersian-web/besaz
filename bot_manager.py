@@ -139,7 +139,7 @@ python-dotenv==1.0.1
                     return False
             
             # Detect entrypoint. If missing, generate a minimal template.
-            candidate_files = ["bot.py", "main.py", "app.py"]
+            candidate_files = ["main.py", "bot.py", "app.py", "run.py"]
             entrypoint = None
             for fname in candidate_files:
                 if os.path.exists(os.path.join(bot_dir, fname)):
@@ -149,10 +149,14 @@ python-dotenv==1.0.1
                 await self.create_bot_template(bot_dir)
                 entrypoint = "bot.py"
             
-            # Create .env file with bot token
+            # Create .env file with bot token and optional admin/channel
             env_file = os.path.join(bot_dir, ".env")
             with open(env_file, "w") as f:
-                f.write(f"BOT_TOKEN={bot_token}\\n")
+                f.write(("BOT_TOKEN={bot_token}\nADMIN_ID={admin_id}\nCHANNEL_ID={channel_id}\n").format(
+                    bot_token=bot_token,
+                    admin_id=str(Config.ADMIN_USER_ID or ""),
+                    channel_id=str(Config.LOCKED_CHANNEL_ID or "")
+                ))
             
             # Always use a per-bot virtual environment (PEP 668 safe)
             venv_dir = os.path.join(bot_dir, 'venv')

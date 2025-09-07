@@ -14,7 +14,7 @@ class Config:
     DATABASE_URL = os.getenv('DATABASE_URL', 'sqlite:///bot_manager.db')
     
     # Bot Deployment Configuration
-    BOT_REPO_URL = os.getenv('BOT_REPO_URL', 'https://github.com/your-username/telegram-bot-template.git')
+    BOT_REPO_URL = os.getenv('BOT_REPO_URL', 'https://github.com/wings-iran/WINGSBOT_FREE')
     # Default to a folder named 'deployed bot' inside the project directory (supports space as user requested)
     _BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     BOT_DEPLOYMENT_DIR = os.getenv('BOT_DEPLOYMENT_DIR', os.path.join(_BASE_DIR, 'deployed bot'))
