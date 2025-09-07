@@ -273,6 +273,8 @@ class MainBot:
     async def start_bot_creation(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Start bot creation conversation"""
         query = update.callback_query
+        # Also mark a flag to catch token via generic text handler if conversation misses it
+        context.user_data['awaiting_bot_token'] = True
         await query.edit_message_text(
             """
 🤖 **ساخت ربات جدید**
@@ -821,9 +823,19 @@ class MainBot:
     async def handle_text_messages(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle admin inline inputs for settings updates"""
         user_id = update.effective_user.id
+        text = (update.message.text or "").strip()
+
+        # If user is in bot-token flow, accept Telegram token here as a fallback
+        if context.user_data.get('awaiting_bot_token'):
+            import re
+            if re.match(r'^\d{6,}:[A-Za-z0-9_-]{30,}$', text):
+                # Clear flag and delegate to token handler
+                context.user_data['awaiting_bot_token'] = False
+                await self.handle_bot_token(update, context)
+                return
+
         if not await db.is_admin(user_id):
             return
-        text = (update.message.text or "").strip()
         # Update prices
         if context.user_data.get('awaiting_prices'):
             try:
