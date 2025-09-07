@@ -773,6 +773,8 @@ Click on a plan to proceed with payment.
         monitor_task = asyncio.create_task(monitor.start_monitoring())
         
         # Start the bot
+        if self.application is None:
+            self.setup_handlers()
         await self.application.initialize()
         await self.application.start()
         await self.application.updater.start_polling()
