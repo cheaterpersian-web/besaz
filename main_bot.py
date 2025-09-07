@@ -261,6 +261,20 @@ class MainBot:
             await self.handle_admin_callback(update, context, data)
         elif data.startswith("bot_"):
             await self.handle_bot_callback(update, context, data)
+        elif data.startswith("start_bot_"):
+            bot_id = int(data.split("_")[-1])
+            bot_info = await db.get_bot(bot_id)
+            if bot_info:
+                await bot_manager.deploy_bot(bot_id, bot_info['bot_token'])
+            await self.handle_bot_callback(update, context, f"bot_{bot_id}")
+        elif data.startswith("stop_bot_"):
+            bot_id = int(data.split("_")[-1])
+            await bot_manager.stop_bot(bot_id)
+            await self.handle_bot_callback(update, context, f"bot_{bot_id}")
+        elif data.startswith("restart_bot_"):
+            bot_id = int(data.split("_")[-1])
+            await bot_manager.restart_bot(bot_id)
+            await self.handle_bot_callback(update, context, f"bot_{bot_id}")
         elif data.startswith("plan_"):
             await self.handle_plan_callback(update, context, data)
         elif data.startswith("payment_"):

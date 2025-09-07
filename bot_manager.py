@@ -217,28 +217,37 @@ python-dotenv==1.0.1
     async def stop_bot(self, bot_id: int) -> bool:
         """Stop a running bot"""
         try:
+            # Try in-memory process first
             if bot_id in self.running_bots:
                 process_info = self.running_bots[bot_id]
                 process = process_info['process']
-                
                 # Terminate the process
                 process.terminate()
-                
-                # Wait for graceful shutdown
                 try:
                     process.wait(timeout=10)
                 except subprocess.TimeoutExpired:
-                    # Force kill if it doesn't stop gracefully
                     process.kill()
                     process.wait()
-                
-                # Remove from running bots
                 del self.running_bots[bot_id]
-                
-                # Update database
                 await db.update_bot_status(bot_id, Config.BOT_STATUS_INACTIVE)
-                
                 return True
+
+            # Fallback: stop by PID stored in DB, if any
+            bot_info = await db.get_bot(bot_id)
+            if bot_info and bot_info.get('process_id'):
+                pid = int(bot_info['process_id'])
+                try:
+                    p = psutil.Process(pid)
+                    p.terminate()
+                    try:
+                        p.wait(timeout=10)
+                    except psutil.TimeoutExpired:
+                        p.kill()
+                        p.wait()
+                    await db.update_bot_status(bot_id, Config.BOT_STATUS_INACTIVE)
+                    return True
+                except Exception:
+                    pass
             return False
         except Exception as e:
             print(f"Error stopping bot {bot_id}: {e}")
