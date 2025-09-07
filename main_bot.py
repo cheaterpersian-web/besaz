@@ -269,6 +269,9 @@ class MainBot:
             await self.handle_payment_method_callback(update, context, data)
         elif data.startswith("submit_proof_"):
             await self.handle_submit_proof_callback(update, context)
+        elif data.startswith("approve_payment_") or data.startswith("reject_payment_"):
+            # Forward payment moderation actions to admin handler
+            await self.handle_admin_callback(update, context, data)
         elif data.startswith("admin_"):
             await self.handle_admin_callback(update, context, data)
     
