@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, Bot
 from telegram.ext import (
     Application, CommandHandler, CallbackQueryHandler, 
     MessageHandler, filters, ContextTypes, ConversationHandler
@@ -16,20 +16,12 @@ from monitor import monitor
 from error_handler import handle_telegram_errors
 from logger import logger
 
-# Enable logging
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO
-)
-logger = logging.getLogger(__name__)
-
 # Conversation states
 WAITING_FOR_BOT_TOKEN, WAITING_FOR_PAYMENT_PROOF = range(2)
 
 class MainBot:
     def __init__(self):
         self.application = None
-        self.setup_handlers()
     
     def setup_handlers(self):
         """Setup all command and callback handlers"""
@@ -205,7 +197,7 @@ class MainBot:
     async def payments_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /payments command"""
         user_id = update.effective_user.id
-        await self.show_payment_history(update, context, user_id)
+        await payment_handler.show_payment_history(update, context, user_id)
     
     async def setup_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /setup command (admin only)"""
@@ -253,6 +245,8 @@ class MainBot:
             await self.show_subscription_plans(update, context)
         elif data == "help":
             await self.help_command(update, context)
+        elif data == "main_menu":
+            await self.start_command(update, context)
         elif data == "admin_panel":
             await self.show_admin_panel(update, context)
         elif data.startswith("bot_"):
@@ -484,37 +478,37 @@ Click on a plan to proceed with payment.
     
     async def handle_plan_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE, data: str):
         """Handle plan selection callback"""
-        plan_type = data.replace("plan_", "")
+        plan_type = data
         await payment_handler.handle_plan_selection(update, context, plan_type)
     
     async def handle_payment_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE, data: str):
-        """Handle payment selection callback"""
+        """Handle payment selection callback: payment_<plan_type>_<bot_id>"""
         parts = data.split("_")
         if len(parts) >= 3:
-            plan_type = f"plan_{parts[1]}_{parts[2]}"
-            bot_id = int(parts[3])
+            bot_id = int(parts[-1])
+            plan_type = "_".join(parts[1:-1])
             await payment_handler.handle_payment_selection(update, context, plan_type, bot_id)
     
     async def handle_payment_method_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE, data: str):
-        """Handle payment method selection callback"""
+        """Handle payment method selection callback: method_<method>_<plan_type>_<bot_id>"""
         parts = data.split("_")
-        if len(parts) >= 4:
+        if len(parts) >= 5:
             payment_method = parts[1]
-            plan_type = f"plan_{parts[2]}_{parts[3]}"
-            bot_id = int(parts[4])
+            bot_id = int(parts[-1])
+            plan_type = "_".join(parts[2:-1])
             await payment_handler.show_payment_instructions(update, context, payment_method, plan_type, bot_id)
     
     async def start_payment(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Start payment conversation"""
+        """Start payment conversation from callback: payment_<plan_type>_<bot_id>"""
         query = update.callback_query
         data = query.data
         
         # Extract payment info from callback data
         parts = data.split("_")
         if len(parts) >= 3:
-            plan_type = f"plan_{parts[1]}_{parts[2]}"
-            bot_id = int(parts[3])
-            await payment_handler.handle_plan_selection(update, context, plan_type)
+            bot_id = int(parts[-1])
+            plan_type = "_".join(parts[1:-1])
+            await payment_handler.handle_payment_selection(update, context, plan_type, bot_id)
         else:
             await query.edit_message_text("❌ Invalid payment data.")
     
@@ -523,13 +517,13 @@ Click on a plan to proceed with payment.
         return await payment_handler.handle_payment_proof(update, context)
     
     async def handle_submit_proof_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE, data: str):
-        """Handle payment proof submission callback"""
+        """Handle payment proof submission callback: submit_proof_<method>_<plan_type>_<bot_id>"""
         parts = data.split("_")
-        if len(parts) >= 5:
+        if len(parts) >= 6:
             payment_method = parts[2]
-            plan_type = f"plan_{parts[3]}_{parts[4]}"
-            bot_id = int(parts[5])
-            await payment_handler.start_payment_proof_submission(update, context, payment_method, plan_type, bot_id)
+            bot_id = int(parts[-1])
+            plan_type = "_".join(parts[3:-1])
+            return await payment_handler.start_payment_proof_submission(update, context, payment_method, plan_type, bot_id)
     
     async def handle_bot_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE, data: str):
         """Handle bot management callback"""

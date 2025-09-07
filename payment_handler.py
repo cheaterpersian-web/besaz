@@ -3,7 +3,7 @@ import logging
 from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ContextTypes
+from telegram.ext import ContextTypes, ConversationHandler
 from telegram.constants import ParseMode
 from config import Config
 from database import db
@@ -210,7 +210,7 @@ Click "I've Made Payment" when you're ready to submit proof.
             "Send /cancel to cancel this operation."
         )
         
-        return "WAITING_FOR_PAYMENT_PROOF"
+        return WAITING_FOR_PAYMENT_PROOF
     
     async def handle_payment_proof(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle payment proof submission"""
