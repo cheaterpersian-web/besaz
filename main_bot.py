@@ -39,6 +39,8 @@ class MainBot:
         # Admin command handlers
         self.application.add_handler(CommandHandler("setup", self.setup_command))
         self.application.add_handler(CommandHandler("users", self.users_command))
+        self.application.add_handler(CommandHandler("role", self.set_user_role_command))
+        self.application.add_handler(CommandHandler("active", self.set_user_active_command))
         self.application.add_handler(CommandHandler("broadcast", self.broadcast_command))
         
         # Conversation handlers (must be added BEFORE catch-all callback handler)
@@ -946,18 +948,143 @@ class MainBot:
         )
     
     async def show_users_management(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Show users management for admin"""
-        # This would require implementing get_all_users in database.py
-        text = "👥 **Users Management**\\n\\nUser management functionality will be implemented here."
-        
-        keyboard = [[InlineKeyboardButton("🔙 Back to Admin Panel", callback_data="admin_panel")]]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        
-        await update.callback_query.edit_message_text(
-            text,
-            parse_mode=ParseMode.MARKDOWN,
-            reply_markup=reply_markup
+        """نمایش مدیریت کاربران (فارسی) با صفحه‌بندی و اکشن‌ها"""
+        query = update.callback_query
+        data = (query.data or "")
+        # صفحه فعلی از callback_data استخراج شود: users_page_<n>
+        page = 1
+        if data.startswith("users_page_"):
+            try:
+                page = int(data.split("_")[-1])
+            except Exception:
+                page = 1
+        # اندازه صفحه
+        page_size = 10
+        offset = (page - 1) * page_size
+        # آمار و لیست
+        total = await db.count_users()
+        actives = await db.count_active_users()
+        admins = await db.count_admin_users()
+        users = await db.get_users_paginated(offset=offset, limit=page_size)
+
+        from html import escape
+        text = (
+            f"<b>👥 مدیریت کاربران</b>\n\n"
+            f"کل کاربران: {total}\n"
+            f"فعال: {actives}\n"
+            f"ادمین‌ها: {admins}\n\n"
+            f"<b>لیست (صفحه {page}):</b>\n"
         )
+        if not users:
+            text += "— لیستی برای نمایش نیست —"
+        else:
+            for u in users:
+                uid = u.get('user_id')
+                uname = (('@' + u['username']) if u.get('username') else (u.get('first_name') or 'بدون‌نام'))
+                role = u.get('role') or '-'
+                is_active = bool(u.get('is_active'))
+                text += (
+                    f"• {escape(str(uname))} (<code>{uid}</code>)\n"
+                    f"  نقش: <b>{escape(str(role))}</b> | وضعیت: {'✅ فعال' if is_active else '❌ غیرفعال'}\n"
+                )
+
+        # دکمه‌ها: صفحه‌بندی + برگشت + راهنمای اکشن‌ها
+        keyboard = []
+        nav_row = []
+        max_page = max(1, (total + page_size - 1) // page_size)
+        if page > 1:
+            nav_row.append(InlineKeyboardButton("⬅️ قبلی", callback_data=f"users_page_{page-1}"))
+        if page < max_page:
+            nav_row.append(InlineKeyboardButton("بعدی ➡️", callback_data=f"users_page_{page+1}"))
+        if nav_row:
+            keyboard.append(nav_row)
+        keyboard.append([InlineKeyboardButton("🔙 بازگشت به پنل ادمین", callback_data="admin_panel")])
+
+        # توضیح اکشن‌ها (با دستور اینلاین)
+        text += (
+            "\n<b>اکشن‌ها:</b>\n"
+            "- برای تغییر نقش: /role &lt;user_id&gt; &lt;admin|user&gt;\n"
+            "- برای فعال/غیرفعال: /active &lt;user_id&gt; &lt;1|0&gt;\n"
+        )
+
+        await query.edit_message_text(text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
+
+    async def users_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """بازنویسی /users برای نمایش پنل مدیریت کاربران"""
+        user_id = update.effective_user.id
+        if not await db.is_admin(user_id):
+            await update.message.reply_text("❌ دسترسی رد شد.")
+            return
+        # شبیه callback، اما با reply
+        # آمار و صفحه اول
+        total = await db.count_users()
+        actives = await db.count_active_users()
+        admins = await db.count_admin_users()
+        users = await db.get_users_paginated(offset=0, limit=10)
+        from html import escape
+        text = (
+            f"<b>👥 مدیریت کاربران</b>\n\n"
+            f"کل کاربران: {total}\n"
+            f"فعال: {actives}\n"
+            f"ادمین‌ها: {admins}\n\n"
+            f"<b>لیست (صفحه 1):</b>\n"
+        )
+        if not users:
+            text += "— لیستی برای نمایش نیست —"
+        else:
+            for u in users:
+                uid = u.get('user_id')
+                uname = (('@' + u['username']) if u.get('username') else (u.get('first_name') or 'بدون‌نام'))
+                role = u.get('role') or '-'
+                is_active = bool(u.get('is_active'))
+                text += (
+                    f"• {escape(str(uname))} (<code>{uid}</code>)\n"
+                    f"  نقش: <b>{escape(str(role))}</b> | وضعیت: {'✅ فعال' if is_active else '❌ غیرفعال'}\n"
+                )
+        keyboard = [
+            [InlineKeyboardButton("بعدی ➡️", callback_data="users_page_2")],
+            [InlineKeyboardButton("🔙 بازگشت به پنل ادمین", callback_data="admin_panel")]
+        ]
+        text += (
+            "\n<b>اکشن‌ها:</b>\n"
+            "- برای تغییر نقش: /role &lt;user_id&gt; &lt;admin|user&gt;\n"
+            "- برای فعال/غیرفعال: /active &lt;user_id&gt; &lt;1|0&gt;\n"
+        )
+        await update.message.reply_text(text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
+
+    async def set_user_role_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """/role <user_id> <admin|user>"""
+        user_id = update.effective_user.id
+        if not await db.is_admin(user_id):
+            await update.message.reply_text("❌ دسترسی رد شد.")
+            return
+        try:
+            args = context.args
+            target_id = int(args[0])
+            role = args[1].lower()
+            if role not in (Config.USER_ROLE_ADMIN, Config.USER_ROLE_USER):
+                raise ValueError("bad role")
+            ok = await db.set_user_role(target_id, role)
+            await update.message.reply_text("✅ نقش کاربر بروزرسانی شد." if ok else "❌ بروزرسانی نقش ناموفق.")
+        except Exception:
+            await update.message.reply_text("❌ فرمت: /role <user_id> <admin|user>")
+
+    async def set_user_active_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """/active <user_id> <1|0>"""
+        user_id = update.effective_user.id
+        if not await db.is_admin(user_id):
+            await update.message.reply_text("❌ دسترسی رد شد.")
+            return
+        try:
+            args = context.args
+            target_id = int(args[0])
+            active_val = int(args[1])
+            if active_val not in (0, 1):
+                raise ValueError("bad active")
+            ok = await db.set_user_active(target_id, bool(active_val))
+            await update.message.reply_text("✅ وضعیت کاربر بروزرسانی شد." if ok else "❌ بروزرسانی وضعیت ناموفق.")
+        except Exception:
+            await update.message.reply_text("❌ فرمت: /active <user_id> <1|0>")
     
     async def show_admin_settings(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Show admin settings (Persian) with live values from DB settings, fallback to Config."""

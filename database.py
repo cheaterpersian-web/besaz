@@ -135,6 +135,61 @@ class Database:
             pass
         user = await self.get_user(user_id)
         return bool(user and user.get('role') == Config.USER_ROLE_ADMIN)
+
+    async def get_users_paginated(self, offset: int = 0, limit: int = 10) -> List[Dict[str, Any]]:
+        """Get users with pagination (ordered by created_at DESC)."""
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute('''
+                SELECT * FROM users
+                ORDER BY created_at DESC
+                LIMIT ? OFFSET ?
+            ''', (limit, offset)) as cursor:
+                rows = await cursor.fetchall()
+                return [dict(row) for row in rows]
+
+    async def count_users(self) -> int:
+        """Count total users."""
+        async with aiosqlite.connect(self.db_path) as db:
+            async with db.execute('SELECT COUNT(*) FROM users') as cursor:
+                row = await cursor.fetchone()
+                return int(row[0]) if row and row[0] is not None else 0
+
+    async def count_active_users(self) -> int:
+        """Count active users."""
+        async with aiosqlite.connect(self.db_path) as db:
+            async with db.execute('SELECT COUNT(*) FROM users WHERE is_active = 1') as cursor:
+                row = await cursor.fetchone()
+                return int(row[0]) if row and row[0] is not None else 0
+
+    async def count_admin_users(self) -> int:
+        """Count admin users."""
+        async with aiosqlite.connect(self.db_path) as db:
+            async with db.execute('SELECT COUNT(*) FROM users WHERE role = ?', (Config.USER_ROLE_ADMIN,)) as cursor:
+                row = await cursor.fetchone()
+                return int(row[0]) if row and row[0] is not None else 0
+
+    async def set_user_role(self, user_id: int, role: str) -> bool:
+        """Update user's role."""
+        try:
+            async with aiosqlite.connect(self.db_path) as db:
+                await db.execute('UPDATE users SET role = ? WHERE user_id = ?', (role, user_id))
+                await db.commit()
+                return True
+        except Exception as e:
+            print(f"Error setting user role: {e}")
+            return False
+
+    async def set_user_active(self, user_id: int, is_active: bool) -> bool:
+        """Update user's active flag."""
+        try:
+            async with aiosqlite.connect(self.db_path) as db:
+                await db.execute('UPDATE users SET is_active = ? WHERE user_id = ?', (1 if is_active else 0, user_id))
+                await db.commit()
+                return True
+        except Exception as e:
+            print(f"Error setting user active flag: {e}")
+            return False
     
     # Bot operations
     async def add_bot(self, owner_id: int, bot_token: str, bot_username: str = None, bot_name: str = None,
