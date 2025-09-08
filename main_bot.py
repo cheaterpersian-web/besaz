@@ -19,7 +19,7 @@ from logger import logger
 import os
 
 # Conversation states
-WAITING_FOR_BOT_TOKEN, WAITING_FOR_PAYMENT_PROOF = range(2)
+WAITING_FOR_BOT_TOKEN, WAITING_FOR_ADMIN_ID, WAITING_FOR_CHANNEL_ID, WAITING_FOR_PAYMENT_PROOF = range(4)
 
 class MainBot:
     def __init__(self):
@@ -50,6 +50,12 @@ class MainBot:
                 WAITING_FOR_BOT_TOKEN: [
                     # First try to parse as token; if not a token and expecting admin/channel, route to text handler
                     MessageHandler(filters.TEXT & ~filters.COMMAND, self.route_bot_creation_inputs)
+                ],
+                WAITING_FOR_ADMIN_ID: [
+                    MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_admin_id_input)
+                ],
+                WAITING_FOR_CHANNEL_ID: [
+                    MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_channel_id_input)
                 ],
             },
             fallbacks=[CommandHandler("cancel", self.cancel_conversation)],
@@ -345,7 +351,7 @@ class MainBot:
             context.user_data['awaiting_bot_token'] = False
             await update.message.reply_text(
                 "👤 آیدی عددی ادمین این ربات رو بفرست (از @userinfobot)")
-            return ConversationHandler.END
+            return WAITING_FOR_ADMIN_ID
             
         except Exception as e:
             logger.error(f"Error creating bot: {e}")
@@ -355,15 +361,16 @@ class MainBot:
             )
             return WAITING_FOR_BOT_TOKEN
         
-        return ConversationHandler.END
+        return WAITING_FOR_BOT_TOKEN
 
     async def route_bot_creation_inputs(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Route incoming text during bot creation: token vs admin/channel IDs."""
         text = (update.message.text or "").strip()
         # If waiting for admin/channel, let generic text handler process it
-        if context.user_data.get('awaiting_admin_id') or context.user_data.get('awaiting_channel_id'):
-            await self.handle_text_messages(update, context)
-            return WAITING_FOR_BOT_TOKEN
+        if context.user_data.get('awaiting_admin_id'):
+            return await self.handle_admin_id_input(update, context)
+        if context.user_data.get('awaiting_channel_id'):
+            return await self.handle_channel_id_input(update, context)
         # Otherwise treat as token
         return await self.handle_bot_token(update, context)
 
@@ -398,27 +405,9 @@ class MainBot:
 
         # Bot creation: collect admin id and channel id
         if context.user_data.get('awaiting_admin_id'):
-            try:
-                admin_id = int(text)
-                context.user_data['awaiting_admin_id'] = False
-                context.user_data['awaiting_channel_id'] = True
-                await update.message.reply_text("🔒 آیدی کانال قفل (یا @username) رو بفرست. اگه نداری، بنویس: -")
-                context.user_data['pending_admin_id'] = admin_id
-                return
-            except Exception:
-                await update.message.reply_text("❌ آیدی عددی نامعتبره. فقط عدد بفرست.")
-                return
+            return await self.handle_admin_id_input(update, context)
         if context.user_data.get('awaiting_channel_id'):
-            channel_id = text if text != '-' else None
-            bot_id = context.user_data.get('new_bot_id')
-            admin_id = context.user_data.get('pending_admin_id')
-            if bot_id:
-                await db.update_bot_admin_and_channel(bot_id, admin_user_id=admin_id, locked_channel_id=channel_id)
-            context.user_data['awaiting_channel_id'] = False
-            # Confirm and guide to subscribe
-            await update.message.reply_text(
-                "✅ تنظیمات ربات ثبت شد. برای فعال‌سازی، از منو روی «💳 اشتراک» بزن.")
-            return
+            return await self.handle_channel_id_input(update, context)
 
         # Existing logic continues...
         
@@ -733,6 +722,32 @@ class MainBot:
         if result == "WAITING_FOR_PAYMENT_PROOF":
             return WAITING_FOR_PAYMENT_PROOF
         return result
+
+    async def handle_admin_id_input(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle numeric admin ID during bot creation flow."""
+        text = (update.message.text or "").strip()
+        try:
+            admin_id = int(text)
+        except Exception:
+            await update.message.reply_text("❌ آیدی عددی نامعتبره. فقط عدد بفرست.")
+            return WAITING_FOR_ADMIN_ID
+        context.user_data['awaiting_admin_id'] = False
+        context.user_data['awaiting_channel_id'] = True
+        context.user_data['pending_admin_id'] = admin_id
+        await update.message.reply_text("🔒 آیدی کانال قفل (یا @username) رو بفرست. اگه نداری، بنویس: -")
+        return WAITING_FOR_CHANNEL_ID
+
+    async def handle_channel_id_input(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle channel ID or '-' during bot creation flow."""
+        text = (update.message.text or "").strip()
+        channel_id = text if text != '-' else None
+        bot_id = context.user_data.get('new_bot_id')
+        admin_id = context.user_data.get('pending_admin_id')
+        if bot_id:
+            await db.update_bot_admin_and_channel(bot_id, admin_user_id=admin_id, locked_channel_id=channel_id)
+        context.user_data['awaiting_channel_id'] = False
+        await update.message.reply_text("✅ تنظیمات ربات ثبت شد. برای فعال‌سازی، از منو روی «💳 اشتراک» بزن.")
+        return ConversationHandler.END
     
     async def handle_submit_proof_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle payment proof submission callback: submit_proof_<method>_<plan_type>_<bot_id>"""
