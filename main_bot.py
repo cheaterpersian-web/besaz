@@ -705,24 +705,29 @@ class MainBot:
         status = await bot_manager.get_bot_status(bot_id)
         subscription = await db.get_bot_subscription(bot_id)
         
-        text = f"""
-🤖 **مدیریت ربات: @{bot['bot_username']}**
-
-**وضعیت:** {status['status'].title()}
-**در حال اجرا:** {'✅ بله' if status['is_running'] else '❌ خیر'}
-**اشتراک:** {'✅ فعال' if status['subscription_active'] else '❌ غیرفعال'}
-
-**جزئیات ربات:**
-• ایجاد شده: {status['created_at']}
-• آخرین فعالیت: {status['last_activity'] or 'هرگز'}
-        """
+        # Use HTML to avoid Markdown entity parsing issues (e.g., underscores in usernames)
+        safe_username = escape(str(bot['bot_username']))
+        status_title = escape(str(status['status']).title())
+        created_at = escape(str(status['created_at']))
+        last_activity = escape(str(status['last_activity'] or 'هرگز'))
+        text = (
+            f"<b>🤖 مدیریت ربات: @{safe_username}</b>\n\n"
+            f"<b>وضعیت:</b> {status_title}\n"
+            f"<b>در حال اجرا:</b> {'✅ بله' if status['is_running'] else '❌ خیر'}\n"
+            f"<b>اشتراک:</b> {'✅ فعال' if status['subscription_active'] else '❌ غیرفعال'}\n\n"
+            f"<b>جزئیات ربات:</b>\n"
+            f"• ایجاد شده: {created_at}\n"
+            f"• آخرین فعالیت: {last_activity}"
+        )
         
         if subscription:
             end_date = datetime.fromisoformat(subscription['end_date'])
             days_left = (end_date - datetime.now()).days
-            text += f"• پلن: {subscription['plan_type']}\\n"
-            text += f"• انقضا: {end_date.strftime('%Y-%m-%d')}\\n"
-            text += f"• روزهای باقی‌مانده: {days_left}\\n"
+            text += (
+                f"\n• پلن: <code>{escape(str(subscription['plan_type']))}</code>\n"
+                f"• انقضا: {escape(end_date.strftime('%Y-%m-%d'))}\n"
+                f"• روزهای باقی‌مانده: {days_left}"
+            )
         
         keyboard = []
         
@@ -743,7 +748,7 @@ class MainBot:
         
         await update.callback_query.edit_message_text(
             text,
-            parse_mode=ParseMode.MARKDOWN,
+            parse_mode=ParseMode.HTML,
             reply_markup=reply_markup
         )
 
@@ -874,13 +879,13 @@ class MainBot:
         )
     
     async def show_all_bots(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Show all bots for admin"""
+        """Show all bots for admin (HTML)"""
         bots = await db.get_all_bots()
         
         if not bots:
-            text = "🤖 **همه ربات‌ها**\\n\\nهیچ رباتی یافت نشد."
+            text = "<b>🤖 همه ربات‌ها</b>\n\nهیچ رباتی یافت نشد."
         else:
-            text = "🤖 **همه ربات‌ها**\\n\\n"
+            text = "<b>🤖 همه ربات‌ها</b>\n\n"
             
             for bot in bots:
                 subscription = await db.get_bot_subscription(bot['id'])
@@ -888,18 +893,19 @@ class MainBot:
                 is_running = await bot_manager.is_bot_running(bot['id'])
                 
                 status_emoji = "🟢" if is_running and is_active else "🔴"
-                text += f"{status_emoji} **@{bot['bot_username']}**\\n"
-                text += f"Owner: {bot['owner_id']}\\n"
-                text += f"Status: {bot['status']}\\n"
-                text += f"Running: {'Yes' if is_running else 'No'}\\n"
-                text += f"Subscription: {'Active' if is_active else 'Inactive'}\\n\\n"
+                safe_username = escape(str(bot['bot_username']))
+                text += f"{status_emoji} <b>@{safe_username}</b>\n"
+                text += f"Owner: {bot['owner_id']}\n"
+                text += f"Status: {escape(str(bot['status']))}\n"
+                text += f"Running: {'Yes' if is_running else 'No'}\n"
+                text += f"Subscription: {'Active' if is_active else 'Inactive'}\n\n"
         
         keyboard = [[InlineKeyboardButton("🔙 Back to Admin Panel", callback_data="admin_panel")]]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
         await update.callback_query.edit_message_text(
             text,
-            parse_mode=ParseMode.MARKDOWN,
+            parse_mode=ParseMode.HTML,
             reply_markup=reply_markup
         )
     
