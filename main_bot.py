@@ -221,6 +221,9 @@ class MainBot:
         elif data == "update_prices" or data == "update_payment_info":
             # Forward admin-settings actions
             await self.handle_admin_callback(update, context, data)
+        elif data in ("broadcast_text", "broadcast_forward"):
+            # Forward broadcast mode selections to admin handler
+            await self.handle_admin_callback(update, context, data)
         elif data.startswith("bot_"):
             await self.handle_bot_callback(update, context, data)
         elif data.startswith("start_bot_"):
