@@ -1039,6 +1039,16 @@ class MainBot:
             user_id = update.effective_user.id if update.effective_user else None
             if not user_id or not await db.is_admin(user_id):
                 return
+            # Text-broadcast mode: send plain text to all
+            if context.user_data.get('awaiting_broadcast_text') and getattr(update.effective_message, 'text', None):
+                # Ignore commands
+                if not update.effective_message.text.startswith('/'):
+                    context.user_data['awaiting_broadcast_text'] = False
+                    await update.effective_message.reply_text("⏳ در حال ارسال پیام به همه کاربران...")
+                    sent, failed = await self._broadcast_text_to_all(context, update.effective_message.text)
+                    await update.effective_message.reply_text(
+                        f"✅ ارسال همگانی انجام شد.\nارسال‌شده: {sent}\nناموفق: {failed}")
+                    return
             # Forward-mode: accept any message
             if context.user_data.get('awaiting_broadcast_forward'):
                 context.user_data['awaiting_broadcast_forward'] = False
