@@ -745,6 +745,28 @@ class MainBot:
         admin_id = context.user_data.get('pending_admin_id')
         if bot_id:
             await db.update_bot_admin_and_channel(bot_id, admin_user_id=admin_id, locked_channel_id=channel_id)
+            # Auto-activate demo subscription for the first bot of this user
+            try:
+                if int(getattr(Config, 'DEMO_DURATION_DAYS', 0)) > 0:
+                    user_id = update.effective_user.id
+                    bots = await db.get_user_bots(user_id)
+                    if bots and len(bots) == 1 and int(bots[0]['id']) == int(bot_id):
+                        # Grant demo subscription
+                        await db.add_subscription(bot_id, 'demo', int(Config.DEMO_DURATION_DAYS))
+                        # Try to deploy immediately
+                        try:
+                            bot_info = await db.get_bot(bot_id)
+                            if bot_info and bot_info.get('bot_token'):
+                                await bot_manager.deploy_bot(bot_id, bot_info['bot_token'])
+                        except Exception as e:
+                            logger.error(f"Error deploying demo bot {bot_id}: {e}")
+                        try:
+                            await update.message.reply_text(
+                                f"🎁 دمو {int(Config.DEMO_DURATION_DAYS)} روزه فعال شد. از منو «📋 ربات‌های من» مدیریت کن.")
+                        except Exception:
+                            pass
+            except Exception as e:
+                logger.error(f"Error during demo activation for bot {bot_id}: {e}")
         context.user_data['awaiting_channel_id'] = False
         await update.message.reply_text("✅ تنظیمات ربات ثبت شد. برای فعال‌سازی، از منو روی «💳 اشتراک» بزن.")
         return ConversationHandler.END
