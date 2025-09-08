@@ -72,6 +72,9 @@ class MainBot:
         # Callback query handlers (catch-all) – add AFTER conversations
         self.application.add_handler(CallbackQueryHandler(self.handle_callback))
 
+        # Broadcast capture: handle forward mode (non-blocking)
+        self.application.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, self.handle_broadcast_capture, block=False))
+
         # Generic text handler to capture admin inline edits and token fallback (non-blocking)
         self.application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_text_messages, block=False))
     
@@ -366,6 +369,14 @@ class MainBot:
         """Handle admin inline inputs for settings updates"""
         user_id = update.effective_user.id
         text = (update.message.text or "").strip()
+
+        # Broadcast text flow
+        if await db.is_admin(user_id) and context.user_data.get('awaiting_broadcast_text'):
+            context.user_data['awaiting_broadcast_text'] = False
+            await update.message.reply_text("⏳ در حال ارسال پیام به همه کاربران...")
+            sent, failed = await self._broadcast_text_to_all(context, text)
+            await update.message.reply_text(f"✅ ارسال همگانی انجام شد.\nارسال‌شده: {sent}\nناموفق: {failed}")
+            return
 
         # Bot creation: collect admin id and channel id
         if context.user_data.get('awaiting_admin_id'):
@@ -851,6 +862,16 @@ class MainBot:
             await self.show_admin_settings(update, context)
         elif data == "admin_broadcast":
             await self.show_broadcast_panel(update, context)
+        elif data == "broadcast_text":
+            context.user_data['awaiting_broadcast_text'] = True
+            context.user_data['awaiting_broadcast_forward'] = False
+            await update.callback_query.edit_message_text(
+                "📢 متن پیام همگانی را بفرستید.\n\nبرای لغو، /cancel را بزنید.")
+        elif data == "broadcast_forward":
+            context.user_data['awaiting_broadcast_forward'] = True
+            context.user_data['awaiting_broadcast_text'] = False
+            await update.callback_query.edit_message_text(
+                "📨 پیامی که می‌خواهید فوروارد شود را همینجا ارسال/فوروارد کنید.\n\nبرای لغو، /cancel را بزنید.")
         elif data == "update_prices":
             await self.prompt_update_prices(update, context)
         elif data == "update_payment_info":
@@ -1009,6 +1030,68 @@ class MainBot:
 
         await query.edit_message_text(text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(keyboard))
 
+    async def handle_broadcast_capture(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Capture any message when awaiting broadcast forward, and dispatch broadcast."""
+        try:
+            user_id = update.effective_user.id if update.effective_user else None
+            if not user_id or not await db.is_admin(user_id):
+                return
+            # Forward-mode: accept any message
+            if context.user_data.get('awaiting_broadcast_forward'):
+                context.user_data['awaiting_broadcast_forward'] = False
+                # Source chat/message for forward
+                src_chat_id = update.effective_chat.id
+                msg_id = update.effective_message.message_id
+                await update.effective_message.reply_text("⏳ در حال فوروارد به همه کاربران...")
+                sent, failed = await self._broadcast_forward_to_all(context, src_chat_id, msg_id)
+                await update.effective_message.reply_text(
+                    f"✅ فوروارد انجام شد.\nارسال‌شده: {sent}\nناموفق: {failed}")
+        except Exception as e:
+            try:
+                await update.effective_message.reply_text("❌ خطا در فوروارد همگانی.")
+            except Exception:
+                pass
+
+    async def _iterate_active_user_ids(self, batch_size: int = 500):
+        """Async generator yielding active user_ids in batches."""
+        offset = 0
+        while True:
+            users = await db.get_users_paginated(offset=offset, limit=batch_size)
+            if not users:
+                break
+            active_ids = [u['user_id'] for u in users if u.get('is_active')]
+            if active_ids:
+                yield active_ids
+            offset += batch_size
+
+    async def _broadcast_text_to_all(self, context: ContextTypes.DEFAULT_TYPE, text: str) -> tuple[int, int]:
+        """Send plain text to all active users. Returns (sent, failed)."""
+        sent = 0
+        failed = 0
+        async for batch in self._iterate_active_user_ids():
+            for uid in batch:
+                try:
+                    await context.bot.send_message(chat_id=int(uid), text=text)
+                    sent += 1
+                except Exception:
+                    failed += 1
+                await asyncio.sleep(0.03)
+        return sent, failed
+
+    async def _broadcast_forward_to_all(self, context: ContextTypes.DEFAULT_TYPE, from_chat_id: int, message_id: int) -> tuple[int, int]:
+        """Forward a message to all active users. Returns (sent, failed)."""
+        sent = 0
+        failed = 0
+        async for batch in self._iterate_active_user_ids():
+            for uid in batch:
+                try:
+                    await context.bot.forward_message(chat_id=int(uid), from_chat_id=from_chat_id, message_id=message_id)
+                    sent += 1
+                except Exception:
+                    failed += 1
+                await asyncio.sleep(0.03)
+        return sent, failed
+
     async def users_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """بازنویسی /users برای نمایش پنل مدیریت کاربران"""
         user_id = update.effective_user.id
@@ -1139,17 +1222,21 @@ class MainBot:
             )
     
     async def show_broadcast_panel(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Show broadcast panel for admin"""
-        text = "📢 **ارسال همگانی**\\n\\nاین بخش به‌زودی تکمیل می‌شه."
-        
-        keyboard = [[InlineKeyboardButton("🔙 بازگشت به پنل ادمین", callback_data="admin_panel")]]
-        reply_markup = InlineKeyboardMarkup(keyboard)
-        
-        await update.callback_query.edit_message_text(
-            text,
-            parse_mode=ParseMode.MARKDOWN,
-            reply_markup=reply_markup
+        """Show broadcast panel for admin (Persian)"""
+        text = (
+            "<b>📢 ارسال همگانی</b>\n\n"
+            "دو روش دارید:\n"
+            "• <b>ارسال متن:</b> یک متن جدید برای همه ارسال می‌شود.\n"
+            "• <b>فوروارد پیام:</b> پیامی که می‌فرستید به همه فوروارد می‌شود.\n\n"
+            "پس از انتخاب، راهنما نمایش داده می‌شود."
         )
+        keyboard = [
+            [InlineKeyboardButton("📝 ارسال متن", callback_data="broadcast_text")],
+            [InlineKeyboardButton("↪️ فوروارد پیام", callback_data="broadcast_forward")],
+            [InlineKeyboardButton("🔙 بازگشت به پنل ادمین", callback_data="admin_panel")]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await update.callback_query.edit_message_text(text, parse_mode=ParseMode.HTML, reply_markup=reply_markup)
     
     async def show_setup_panel(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Show setup panel for admin"""
