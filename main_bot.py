@@ -622,11 +622,22 @@ class MainBot:
         reply_markup = InlineKeyboardMarkup(keyboard)
         
         if update.callback_query:
-            await update.callback_query.edit_message_text(
-                text,
-                parse_mode=ParseMode.MARKDOWN,
-                reply_markup=reply_markup
-            )
+            try:
+                await update.callback_query.edit_message_text(
+                    text,
+                    parse_mode=ParseMode.MARKDOWN,
+                    reply_markup=reply_markup
+                )
+            except Exception as e:
+                try:
+                    from telegram.error import BadRequest
+                    if isinstance(e, BadRequest) and 'Message is not modified' in str(e):
+                        pass
+                    else:
+                        raise
+                except Exception:
+                    if 'Message is not modified' not in str(e):
+                        raise
         else:
             await update.message.reply_text(
                 text,
