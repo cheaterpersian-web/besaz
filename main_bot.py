@@ -1424,15 +1424,26 @@ class MainBot:
         # Start monitoring in background
         monitor_task = asyncio.create_task(monitor.start_monitoring())
         
-        # Start the bot (PTB v21 style)
+        # Start the bot
         if self.application is None:
             self.setup_handlers()
         logger.info("Main bot starting polling...")
+        await self.application.initialize()
+        await self.application.start()
+        await self.application.updater.start_polling()
+        
         try:
-            await self.application.run_polling()
+            # Keep the bot running
+            await asyncio.Event().wait()
+        except KeyboardInterrupt:
+            logger.info("Shutting down...")
         finally:
             try:
                 await monitor.stop_monitoring()
+            except Exception:
+                pass
+            try:
+                await self.application.stop()
             except Exception:
                 pass
 
