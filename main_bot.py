@@ -746,11 +746,25 @@ class MainBot:
         ])
         reply_markup = InlineKeyboardMarkup(keyboard)
         
-        await update.callback_query.edit_message_text(
-            text,
-            parse_mode=ParseMode.HTML,
-            reply_markup=reply_markup
-        )
+        # Avoid Telegram BadRequest: Message is not modified
+        try:
+            await update.callback_query.edit_message_text(
+                text,
+                parse_mode=ParseMode.HTML,
+                reply_markup=reply_markup
+            )
+        except Exception as e:
+            try:
+                from telegram.error import BadRequest
+                if isinstance(e, BadRequest) and 'Message is not modified' in str(e):
+                    # Ignore harmless error
+                    pass
+                else:
+                    raise
+            except Exception:
+                # If telegram.error is not available for isinstance, fallback to string check
+                if 'Message is not modified' not in str(e):
+                    raise
 
     async def prompt_delete_bot(self, update: Update, context: ContextTypes.DEFAULT_TYPE, bot_id: int):
         """Ask user to confirm deleting the bot."""

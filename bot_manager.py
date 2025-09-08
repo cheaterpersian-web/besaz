@@ -17,6 +17,46 @@ class BotManager:
         self.python_path = Config.BOT_PYTHON_PATH
         self.running_bots = {}  # bot_id -> process_info
         
+    def _venv_python(self, bot_dir: str) -> str:
+        return os.path.join(bot_dir, 'venv', 'bin', 'python')
+
+    def _ensure_clean_venv(self, bot_dir: str):
+        """(Sync) Remove and recreate a fresh venv with ensurepip. Best-effort; raises on creation failure."""
+        venv_dir = os.path.join(bot_dir, 'venv')
+        try:
+            shutil.rmtree(venv_dir, ignore_errors=True)
+        except Exception:
+            pass
+        # Create venv
+        subprocess.run([self.python_path, "-m", "venv", "venv"], cwd=bot_dir, check=True)
+        venv_python = self._venv_python(bot_dir)
+        # Bootstrap pip inside venv
+        try:
+            subprocess.run([venv_python, "-m", "ensurepip", "--upgrade", "--default-pip"], cwd=bot_dir, check=False)
+        except Exception:
+            # ignore ensurepip errors; pip check below will decide
+            pass
+
+    def _ensure_pip_ok(self, bot_dir: str) -> Optional[str]:
+        """(Sync) Ensure venv exists and pip is callable. Recreate venv if needed. Returns python exec path or None."""
+        try:
+            venv_python = self._venv_python(bot_dir)
+            if not os.path.exists(venv_python):
+                self._ensure_clean_venv(bot_dir)
+                venv_python = self._venv_python(bot_dir)
+            # Try simple pip invocation
+            result = subprocess.run([venv_python, "-m", "pip", "--version"], cwd=bot_dir, check=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            if result.returncode != 0:
+                # Recreate venv and try again (previous pip possibly corrupted)
+                self._ensure_clean_venv(bot_dir)
+                venv_python = self._venv_python(bot_dir)
+                result2 = subprocess.run([venv_python, "-m", "pip", "--version"], cwd=bot_dir, check=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                if result2.returncode != 0:
+                    return None
+            return venv_python
+        except Exception:
+            return None
+
     async def setup_deployment_directory(self):
         """Create deployment directory if it doesn't exist"""
         if not os.path.exists(self.deployment_dir):
@@ -152,24 +192,17 @@ python-dotenv==1.0.1
                 # Admin can re-deploy if needed to convert to git-backed.
                 pass
 
-            # Ensure Python venv and dependencies
-            venv_dir = os.path.join(bot_dir, 'venv')
-            venv_python = os.path.join(venv_dir, 'bin', 'python')
-            if not os.path.exists(venv_python):
-                subprocess.run([self.python_path, "-m", "venv", "venv"], cwd=bot_dir, check=True)
-            python_exec = venv_python
-
-            # Ensure pip tooling
-            try:
-                subprocess.run([python_exec, "-m", "ensurepip", "--upgrade"], cwd=bot_dir, check=False)
-            except Exception:
-                pass
-            subprocess.run([python_exec, "-m", "pip", "install", "--upgrade", "pip", "setuptools", "wheel"], cwd=bot_dir, check=True)
+            # Ensure Python venv and working pip
+            python_exec = self._ensure_pip_ok(bot_dir)
+            if not python_exec:
+                raise RuntimeError("Failed to bootstrap pip inside venv during update")
 
             # Install requirements if present
             requirements_file = os.path.join(bot_dir, "requirements.txt")
             if os.path.exists(requirements_file):
-                subprocess.run([python_exec, "-m", "pip", "install", "-r", requirements_file, "--no-cache-dir"], cwd=bot_dir, check=True)
+                env = os.environ.copy()
+                env['PIP_DISABLE_PIP_VERSION_CHECK'] = '1'
+                subprocess.run([python_exec, "-m", "pip", "install", "-r", requirements_file, "--no-cache-dir", "-q"], cwd=bot_dir, check=True, env=env)
 
             return True
         except Exception as e:
@@ -215,25 +248,17 @@ python-dotenv==1.0.1
                     channel_id=str(Config.LOCKED_CHANNEL_ID or "")
                 ))
             
-            # Always use a per-bot virtual environment (PEP 668 safe)
-            venv_dir = os.path.join(bot_dir, 'venv')
-            venv_python = os.path.join(venv_dir, 'bin', 'python')
-            if not os.path.exists(venv_python):
-                # Create venv
-                subprocess.run([self.python_path, "-m", "venv", "venv"], cwd=bot_dir, check=True)
-            python_exec = venv_python
+            # Ensure venv + working pip
+            python_exec = self._ensure_pip_ok(bot_dir)
+            if not python_exec:
+                raise RuntimeError("Failed to bootstrap pip inside venv")
 
-            # Ensure pip is available and up-to-date inside venv
-            try:
-                subprocess.run([python_exec, "-m", "ensurepip", "--upgrade"], cwd=bot_dir, check=False)
-            except Exception:
-                pass
-            subprocess.run([python_exec, "-m", "pip", "install", "--upgrade", "pip", "setuptools", "wheel"], cwd=bot_dir, check=True)
-
-            # Install dependencies inside venv
+            # Install dependencies inside venv (quiet; disable version check to reduce noise)
             requirements_file = os.path.join(bot_dir, "requirements.txt")
             if os.path.exists(requirements_file):
-                subprocess.run([python_exec, "-m", "pip", "install", "-r", requirements_file, "--no-cache-dir"], cwd=bot_dir, check=True)
+                env = os.environ.copy()
+                env['PIP_DISABLE_PIP_VERSION_CHECK'] = '1'
+                subprocess.run([python_exec, "-m", "pip", "install", "-r", requirements_file, "--no-cache-dir", "-q"], cwd=bot_dir, check=True, env=env)
             
             # Start the bot process (log to files to avoid pipe blocking)
             logs_dir = os.path.join(bot_dir, 'logs')
