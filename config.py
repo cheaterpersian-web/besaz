@@ -34,6 +34,9 @@ class Config:
     PRICE_2_MONTHS = float(os.getenv('PRICE_2_MONTHS', 18.00))
     PRICE_3_MONTHS = float(os.getenv('PRICE_3_MONTHS', 25.00))
     
+    # Demo Mode
+    DEMO_DURATION_DAYS = int(os.getenv('DEMO_DURATION_DAYS', 1))
+    
     # Bot Status
     BOT_STATUS_ACTIVE = "active"
     BOT_STATUS_INACTIVE = "inactive"
