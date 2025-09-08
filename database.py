@@ -1,4 +1,5 @@
 import aiosqlite
+import os
 import asyncio
 from datetime import datetime, timedelta
 from typing import List, Optional, Dict, Any
@@ -6,10 +7,24 @@ from config import Config
 
 class Database:
     def __init__(self, db_path: str = "data/bot_manager.db"):
+        # Resolve to absolute path under project directory to avoid CWD issues
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        # If a URL-style was provided via code in future, strip sqlite scheme
+        if isinstance(db_path, str) and db_path.startswith("sqlite:///"):
+            db_path = db_path.replace("sqlite:///", "", 1)
+        if not os.path.isabs(db_path):
+            db_path = os.path.join(base_dir, db_path)
         self.db_path = db_path
     
     async def init_db(self):
         """Initialize the database with all required tables"""
+        # Ensure parent directory exists (e.g., 'data/')
+        try:
+            parent_dir = os.path.dirname(self.db_path)
+            if parent_dir:
+                os.makedirs(parent_dir, exist_ok=True)
+        except Exception:
+            pass
         async with aiosqlite.connect(self.db_path) as db:
             # Users table
             await db.execute('''

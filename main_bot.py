@@ -53,7 +53,6 @@ class MainBot:
                 ],
             },
             fallbacks=[CommandHandler("cancel", self.cancel_conversation)],
-            per_message=True,
         )
         self.application.add_handler(bot_creation_conv)
         
@@ -1425,22 +1424,17 @@ class MainBot:
         # Start monitoring in background
         monitor_task = asyncio.create_task(monitor.start_monitoring())
         
-        # Start the bot
+        # Start the bot (PTB v21 style)
         if self.application is None:
             self.setup_handlers()
-        await self.application.initialize()
-        await self.application.start()
-        await self.application.updater.start_polling()
-        
-        logger.info("Main bot started successfully!")
-        
+        logger.info("Main bot starting polling...")
         try:
-            # Keep the bot running
-            await asyncio.Event().wait()
-        except KeyboardInterrupt:
-            logger.info("Shutting down...")
-            await monitor.stop_monitoring()
-            await self.application.stop()
+            await self.application.run_polling()
+        finally:
+            try:
+                await monitor.stop_monitoring()
+            except Exception:
+                pass
 
 # Create and run the main bot
 if __name__ == '__main__':
