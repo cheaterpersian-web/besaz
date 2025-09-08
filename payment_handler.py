@@ -35,16 +35,15 @@ class PaymentHandler:
             )
             return
         
-        # Show bot selection
-        text = f"""
-💳 **پرداخت برای {plan_details['name']}**
-
-💰 **مبلغ:** ${plan_details['price']:.2f}
-⏰ **مدت:** {plan_details['duration']} روز
-🆔 **شناسه پلن:** {plan_type}
-
-**یکی از ربات‌هات رو انتخاب کن:**
-        """
+        # Show bot selection (use HTML to avoid Markdown entity issues)
+        from html import escape
+        text = (
+            f"<b>💳 پرداخت برای {escape(str(plan_details['name']))}</b>\n\n"
+            f"💰 <b>مبلغ:</b> ${plan_details['price']:.2f}\n"
+            f"⏰ <b>مدت:</b> {plan_details['duration']} روز\n"
+            f"🆔 <b>شناسه پلن:</b> <code>{escape(str(plan_type))}</code>\n\n"
+            f"<b>یکی از ربات‌هات رو انتخاب کن:</b>"
+        )
         
         keyboard = []
         for bot in user_bots:
@@ -68,7 +67,7 @@ class PaymentHandler:
         
         await query.edit_message_text(
             text,
-            parse_mode=ParseMode.MARKDOWN,
+            parse_mode=ParseMode.HTML,
             reply_markup=reply_markup
         )
     
@@ -90,29 +89,29 @@ class PaymentHandler:
             await query.edit_message_text("❌ Bot not found or access denied.")
             return
         
-        # Show payment methods
-        text = f"""
-💳 **جزئیات پرداخت**
-
-🤖 **ربات:** @{bot['bot_username']}
-💰 **پلن:** {plan_details['name']}
-💵 **مبلغ:** ${plan_details['price']:.2f}
-⏰ **مدت:** {plan_details['duration']} روز
-
-**روش پرداخت رو انتخاب کن:**
-        """
+        # Show payment methods (use HTML and escape username)
+        from html import escape
+        safe_bot_username = escape(str(bot['bot_username']))
+        text = (
+            f"<b>💳 جزئیات پرداخت</b>\n\n"
+            f"🤖 <b>ربات:</b> @{safe_bot_username}\n"
+            f"💰 <b>پلن:</b> {escape(str(plan_details['name']))}\n"
+            f"💵 <b>مبلغ:</b> ${plan_details['price']:.2f}\n"
+            f"⏰ <b>مدت:</b> {plan_details['duration']} روز\n\n"
+            f"<b>روش پرداخت رو انتخاب کن:</b>"
+        )
         
         keyboard = [
             [InlineKeyboardButton("🏦 کارت‌به‌کارت", callback_data=f"method_bank_{plan_type}_{bot_id}")],
             [InlineKeyboardButton("₿ ارز دیجیتال", callback_data=f"method_crypto_{plan_type}_{bot_id}")],
-            [InlineKeyboardButton("🔙 بازگشت به انتخاب ربات", callback_data=f"plan_{plan_type}")]
+            [InlineKeyboardButton("🔙 بازگشت به انتخاب ربات", callback_data=f"{plan_type}")]
         ]
         
         reply_markup = InlineKeyboardMarkup(keyboard)
         
         await query.edit_message_text(
             text,
-            parse_mode=ParseMode.MARKDOWN,
+            parse_mode=ParseMode.HTML,
             reply_markup=reply_markup
         )
     
@@ -194,16 +193,14 @@ class PaymentHandler:
         context.user_data['bot_id'] = bot_id
         
         await query.edit_message_text(
-            """
-📸 **ارسال رسید پرداخت**
-
-لطفاً مدرک پرداختتو بفرست:
-• اسکرین‌شات کارت‌به‌کارت (برای کارت‌به‌کارت)
-• شناسه/هش تراکنش (برای ارز دیجیتال)
-
-برای لغو، /cancel رو بزن.
-            """,
-            parse_mode=ParseMode.MARKDOWN
+            (
+                "<b>📸 ارسال رسید پرداخت</b>\n\n"
+                "لطفاً مدرک پرداختتو بفرست:\n"
+                "• اسکرین‌شات کارت‌به‌کارت (برای کارت‌به‌کارت)\n"
+                "• شناسه/هش تراکنش (برای ارز دیجیتال)\n\n"
+                "برای لغو، /cancel رو بزن."
+            ),
+            parse_mode=ParseMode.HTML
         )
     
     async def handle_payment_proof(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
