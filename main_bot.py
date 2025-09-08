@@ -1014,19 +1014,33 @@ class MainBot:
             text = "<b>🤖 همه ربات‌ها</b>\n\nهیچ رباتی یافت نشد."
         else:
             text = "<b>🤖 همه ربات‌ها</b>\n\n"
-            
+            now = datetime.now()
             for bot in bots:
                 subscription = await db.get_bot_subscription(bot['id'])
-                is_active = await db.is_subscription_active(bot['id'])
                 is_running = await bot_manager.is_bot_running(bot['id'])
-                
+                is_active = False
+                is_demo = False
+                if subscription:
+                    try:
+                        end_date = datetime.fromisoformat(subscription['end_date'])
+                        if now < end_date:
+                            is_active = True
+                            is_demo = (str(subscription.get('plan_type')) == 'demo')
+                    except Exception:
+                        pass
                 status_emoji = "🟢" if is_running and is_active else "🔴"
                 safe_username = escape(str(bot['bot_username']))
                 text += f"{status_emoji} <b>@{safe_username}</b>\n"
                 text += f"Owner: {bot['owner_id']}\n"
                 text += f"Status: {escape(str(bot['status']))}\n"
                 text += f"Running: {'Yes' if is_running else 'No'}\n"
-                text += f"Subscription: {'Active' if is_active else 'Inactive'}\n\n"
+                if is_active:
+                    if is_demo:
+                        text += "Subscription: Active (Demo)\n\n"
+                    else:
+                        text += "Subscription: Active\n\n"
+                else:
+                    text += "Subscription: Inactive\n\n"
         
         keyboard = [[InlineKeyboardButton("🔙 Back to Admin Panel", callback_data="admin_panel")]]
         reply_markup = InlineKeyboardMarkup(keyboard)
@@ -1359,18 +1373,29 @@ class MainBot:
     async def show_system_stats(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Show system statistics in setup panel"""
         all_bots = await db.get_all_bots()
-        active_bots = 0
+        paid_active_bots = 0
+        demo_bots = 0
         running_bots = 0
+        now = datetime.now()
         for bot in all_bots:
-            if await db.is_subscription_active(bot['id']):
-                active_bots += 1
+            sub = await db.get_bot_subscription(bot['id'])
+            if sub:
+                try:
+                    end_date = datetime.fromisoformat(sub['end_date'])
+                    if now < end_date:
+                        if str(sub.get('plan_type')) == 'demo':
+                            demo_bots += 1
+                        else:
+                            paid_active_bots += 1
+                except Exception:
+                    pass
             if await bot_manager.is_bot_running(bot['id']):
                 running_bots += 1
         text = (
             "📊 **آمار سیستم**\n\n"
-            f"• کل کاربران: -\n"
             f"• کل ربات‌ها: {len(all_bots)}\n"
-            f"• ربات‌های دارای اشتراک فعال: {active_bots}\n"
+            f"• ربات‌های دمو: {demo_bots}\n"
+            f"• ربات‌های با اشتراک فعال (غیر دمو): {paid_active_bots}\n"
             f"• ربات‌های در حال اجرا: {running_bots}\n"
         )
         keyboard = [[InlineKeyboardButton("🔙 بازگشت", callback_data="setup_panel")]]
