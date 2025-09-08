@@ -622,6 +622,17 @@ class MainBot:
         reply_markup = InlineKeyboardMarkup(keyboard)
         
         if update.callback_query:
+            # Skip edit if content hasn't changed to avoid 'Message is not modified'
+            try:
+                current_msg = update.callback_query.message
+                if current_msg and getattr(current_msg, 'text', None) == text:
+                    try:
+                        await update.callback_query.answer()
+                    except Exception:
+                        pass
+                    return
+            except Exception:
+                pass
             try:
                 await update.callback_query.edit_message_text(
                     text,
