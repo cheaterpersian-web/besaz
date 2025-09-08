@@ -768,7 +768,7 @@ class MainBot:
             except Exception as e:
                 logger.error(f"Error during demo activation for bot {bot_id}: {e}")
         context.user_data['awaiting_channel_id'] = False
-        await update.message.reply_text("✅ تنظیمات ربات ثبت شد. برای فعال‌سازی، از منو روی «💳 اشتراک» بزن.")
+        await update.message.reply_text("✅ تنظیمات ربات ثبت شد. برای فعال‌سازی، از منو روی /subscribe بزن.")
         return ConversationHandler.END
     
     async def handle_submit_proof_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
