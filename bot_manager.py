@@ -119,6 +119,63 @@ python-dotenv==1.0.1
         with open(os.path.join(bot_dir, ".env.template"), "w") as f:
             f.write(env_template)
     
+    async def update_bot_code(self, bot_id: int) -> bool:
+        """Update bot code from the configured Git repository and ensure dependencies are installed.
+        - If the bot directory is a git repo, perform a pull.
+        - Ensure venv exists and install requirements.
+        """
+        try:
+            bot_dir = os.path.join(self.deployment_dir, f"bot_{bot_id}")
+            # Ensure bot directory exists
+            if not os.path.exists(bot_dir):
+                # Create by cloning or generating template
+                created = await self.clone_bot_template(bot_id)
+                if not created:
+                    return False
+            
+            git_dir = os.path.join(bot_dir, '.git')
+            if os.path.exists(git_dir):
+                try:
+                    repo = git.Repo(bot_dir)
+                    try:
+                        # Discard local changes to avoid merge conflicts during pull
+                        repo.git.reset('--hard')
+                    except Exception:
+                        pass
+                    # Pull latest changes from origin
+                    repo.remotes.origin.pull()
+                except Exception as e:
+                    print(f"Error updating repo for bot {bot_id}: {e}")
+                    return False
+            else:
+                # Not a git repo; skip code update to avoid nuking local files
+                # Admin can re-deploy if needed to convert to git-backed.
+                pass
+
+            # Ensure Python venv and dependencies
+            venv_dir = os.path.join(bot_dir, 'venv')
+            venv_python = os.path.join(venv_dir, 'bin', 'python')
+            if not os.path.exists(venv_python):
+                subprocess.run([self.python_path, "-m", "venv", "venv"], cwd=bot_dir, check=True)
+            python_exec = venv_python
+
+            # Ensure pip tooling
+            try:
+                subprocess.run([python_exec, "-m", "ensurepip", "--upgrade"], cwd=bot_dir, check=False)
+            except Exception:
+                pass
+            subprocess.run([python_exec, "-m", "pip", "install", "--upgrade", "pip", "setuptools", "wheel"], cwd=bot_dir, check=True)
+
+            # Install requirements if present
+            requirements_file = os.path.join(bot_dir, "requirements.txt")
+            if os.path.exists(requirements_file):
+                subprocess.run([python_exec, "-m", "pip", "install", "-r", requirements_file, "--no-cache-dir"], cwd=bot_dir, check=True)
+
+            return True
+        except Exception as e:
+            print(f"Error updating code for bot {bot_id}: {e}")
+            return False
+    
     async def deploy_bot(self, bot_id: int, bot_token: str) -> bool:
         """Deploy a bot with the given token"""
         try:
@@ -329,16 +386,35 @@ python-dotenv==1.0.1
                 await db.update_bot_status(bot_id, Config.BOT_STATUS_EXPIRED)
     
     async def restart_all_bots(self):
-        """Restart all bots (useful when main bot restarts)"""
+        """Update code for all bots and restart only those with active subscriptions.
+        Expired or unsubscribed bots will be updated but left inactive.
+        """
         bots = await db.get_all_bots()
-        
+
         for bot in bots:
             bot_id = bot['id']
-            is_subscription_active = await db.is_subscription_active(bot_id)
-            
-            if is_subscription_active:
-                print(f"Restarting bot {bot_id}")
-                await self.deploy_bot(bot_id, bot['bot_token'])
+            try:
+                # Always try to update the bot code and dependencies
+                await self.update_bot_code(bot_id)
+
+                is_subscription_active = await db.is_subscription_active(bot_id)
+                subscription = await db.get_bot_subscription(bot_id)
+
+                if is_subscription_active:
+                    print(f"Restarting bot {bot_id}")
+                    # Proper restart to avoid duplicate processes
+                    await self.restart_bot(bot_id)
+                else:
+                    # Ensure bot is not running
+                    if await self.is_bot_running(bot_id):
+                        await self.stop_bot(bot_id)
+                    # Mark status based on whether it has a (now expired) subscription or none
+                    if subscription:
+                        await db.update_bot_status(bot_id, Config.BOT_STATUS_EXPIRED)
+                    else:
+                        await db.update_bot_status(bot_id, Config.BOT_STATUS_INACTIVE)
+            except Exception as e:
+                print(f"Error handling bot {bot_id} during restart_all_bots: {e}")
     
     async def cleanup_dead_processes(self):
         """Clean up any dead bot processes"""
