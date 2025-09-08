@@ -373,6 +373,22 @@ class MainBot:
         user_id = update.effective_user.id
         text = (update.message.text or "").strip()
 
+        # Always catch Telegram bot token patterns to start creation flow promptly
+        # This ensures that if a user sends a token outside the exact conversation flow, we still proceed.
+        try:
+            import re
+            token_pattern = r'^\d{6,}:[A-Za-z0-9_-]{30,}$'
+            if re.match(token_pattern, text):
+                # Clear any pending flags related to other steps and delegate to token handler
+                context.user_data['awaiting_bot_token'] = False
+                context.user_data['awaiting_admin_id'] = False
+                context.user_data['awaiting_channel_id'] = False
+                await self.handle_bot_token(update, context)
+                return
+        except Exception:
+            # Non-fatal; continue with other handlers
+            pass
+
         # Broadcast text flow
         if await db.is_admin(user_id) and context.user_data.get('awaiting_broadcast_text'):
             context.user_data['awaiting_broadcast_text'] = False
@@ -407,14 +423,17 @@ class MainBot:
 
         # Existing logic continues...
         
-        # If user is in bot-token flow, accept Telegram token here as a fallback
+        # If user is in bot-token flow, accept Telegram token here as a fallback (kept for safety)
         if context.user_data.get('awaiting_bot_token'):
-            import re
-            if re.match(r'^\d{6,}:[A-Za-z0-9_-]{30,}$', text):
-                # Clear flag and delegate to token handler
-                context.user_data['awaiting_bot_token'] = False
-                await self.handle_bot_token(update, context)
-                return
+            try:
+                import re
+                if re.match(r'^\d{6,}:[A-Za-z0-9_-]{30,}$', text):
+                    # Clear flag and delegate to token handler
+                    context.user_data['awaiting_bot_token'] = False
+                    await self.handle_bot_token(update, context)
+                    return
+            except Exception:
+                pass
 
         if not await db.is_admin(user_id):
             return
