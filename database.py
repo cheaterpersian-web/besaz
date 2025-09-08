@@ -39,6 +39,11 @@ class Database:
                     is_active BOOLEAN DEFAULT 1
                 )
             ''')
+            # Backward-compat: add has_used_demo column if missing
+            try:
+                await db.execute("ALTER TABLE users ADD COLUMN has_used_demo INTEGER DEFAULT 0")
+            except Exception:
+                pass
             
             # Bots table
             await db.execute('''
@@ -183,6 +188,25 @@ class Database:
             async with db.execute('SELECT COUNT(*) FROM users WHERE role = ?', (Config.USER_ROLE_ADMIN,)) as cursor:
                 row = await cursor.fetchone()
                 return int(row[0]) if row and row[0] is not None else 0
+
+    async def has_user_used_demo(self, user_id: int) -> bool:
+        """Return True if the user has already consumed their demo entitlement."""
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute('SELECT has_used_demo FROM users WHERE user_id = ?', (user_id,)) as cursor:
+                row = await cursor.fetchone()
+                return bool(row and (row['has_used_demo'] or row[0]))
+
+    async def set_user_used_demo(self, user_id: int, used: bool = True) -> bool:
+        """Mark that a user has used their demo entitlement."""
+        try:
+            async with aiosqlite.connect(self.db_path) as db:
+                await db.execute('UPDATE users SET has_used_demo = ? WHERE user_id = ?', (1 if used else 0, user_id))
+                await db.commit()
+                return True
+        except Exception as e:
+            print(f"Error updating has_used_demo for user {user_id}: {e}")
+            return False
 
     async def set_user_role(self, user_id: int, role: str) -> bool:
         """Update user's role."""
