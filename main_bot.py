@@ -1089,14 +1089,58 @@ class MainBot:
 
     async def handle_restart_all_bots(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Restart all bots from setup panel"""
-        await bot_manager.restart_all_bots()
+        summary = await bot_manager.restart_all_bots()
         await update.callback_query.answer("در حال راه‌اندازی مجدد ربات‌ها", show_alert=False)
+        # Notify admin with results
+        try:
+            if Config.ADMIN_USER_ID:
+                from html import escape
+                def fmt_list(items):
+                    if not items:
+                        return "—"
+                    return "\n".join([f"• @{escape(str(x.get('username') or '-'))} (ID {x.get('id')})" for x in items])
+                text = (
+                    "<b>🔄 گزارش راه‌اندازی مجدد همه ربات‌ها</b>\n\n"
+                    f"<b>تعداد راه‌اندازی‌شده‌ها:</b> {len(summary.get('restarted', []))}\n"
+                    f"<b>تعداد فقط آپدیت‌شده‌ها:</b> {len(summary.get('updated_only', []))}\n"
+                    f"<b>تعداد متوقف‌شده‌های منقضی:</b> {len(summary.get('stopped_expired', []))}\n"
+                    f"<b>تعداد متوقف‌شده‌های بدون اشتراک:</b> {len(summary.get('stopped_inactive', []))}\n"
+                    f"<b>خطاها:</b> {len(summary.get('errors', []))}\n\n"
+                    f"<b>🟢 راه‌اندازی‌شده‌ها:</b>\n{fmt_list(summary.get('restarted'))}\n\n"
+                    f"<b>🛠 فقط آپدیت‌شده‌ها:</b>\n{fmt_list(summary.get('updated_only'))}\n\n"
+                    f"<b>⛔ متوقف‌شده‌های منقضی:</b>\n{fmt_list(summary.get('stopped_expired'))}\n\n"
+                    f"<b>⚪ متوقف‌شده‌های بدون اشتراک:</b>\n{fmt_list(summary.get('stopped_inactive'))}"
+                )
+                if summary.get('errors'):
+                    err_lines = "\n".join([f"• @{escape(str(x.get('username') or '-'))} (ID {x.get('id')}): {escape(str(x.get('error')))}" for x in summary.get('errors')])
+                    text += f"\n\n<b>❗ خطاها:</b>\n{err_lines}"
+                await context.bot.send_message(chat_id=int(Config.ADMIN_USER_ID), text=text, parse_mode=ParseMode.HTML)
+        except Exception:
+            pass
         await self.show_setup_panel(update, context)
 
     async def handle_cleanup_expired(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Cleanup expired bots from setup panel"""
-        await bot_manager.cleanup_expired_bots()
+        summary = await bot_manager.cleanup_expired_bots()
         await update.callback_query.answer("پاکسازی انجام شد", show_alert=False)
+        # Notify admin with results
+        try:
+            if Config.ADMIN_USER_ID:
+                from html import escape
+                def fmt_list(items):
+                    if not items:
+                        return "—"
+                    return "\n".join([f"• @{escape(str(x.get('username') or '-'))} (ID {x.get('id')})" for x in items])
+                text = (
+                    "<b>🧹 گزارش پاکسازی ربات‌های منقضی</b>\n\n"
+                    f"<b>تعداد متوقف‌شده‌ها:</b> {len(summary.get('stopped_expired', []))}\n"
+                    f"<b>تعداد از قبل غیرفعال:</b> {len(summary.get('already_inactive_expired', []))}\n\n"
+                    f"<b>⛔ متوقف‌شده‌ها:</b>\n{fmt_list(summary.get('stopped_expired'))}\n\n"
+                    f"<b>⚪ از قبل غیرفعال:</b>\n{fmt_list(summary.get('already_inactive_expired'))}"
+                )
+                await context.bot.send_message(chat_id=int(Config.ADMIN_USER_ID), text=text, parse_mode=ParseMode.HTML)
+        except Exception:
+            pass
         await self.show_setup_panel(update, context)
 
     async def prompt_update_prices(self, update: Update, context: ContextTypes.DEFAULT_TYPE):

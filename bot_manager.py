@@ -398,29 +398,48 @@ python-dotenv==1.0.1
         }
     
     async def cleanup_expired_bots(self):
-        """Stop all bots with expired subscriptions"""
+        """Stop all bots with expired subscriptions and return a summary.
+        Returns dict: { 'stopped_expired': [ {id, username} ], 'already_inactive_expired': [ {id, username} ] }
+        """
         bots = await db.get_all_bots()
+        summary = {
+            'stopped_expired': [],
+            'already_inactive_expired': []
+        }
         
         for bot in bots:
             bot_id = bot['id']
             is_subscription_active = await db.is_subscription_active(bot_id)
             
-            if not is_subscription_active and await self.is_bot_running(bot_id):
-                print(f"Stopping expired bot {bot_id}")
-                await self.stop_bot(bot_id)
-                await db.update_bot_status(bot_id, Config.BOT_STATUS_EXPIRED)
+            if not is_subscription_active:
+                if await self.is_bot_running(bot_id):
+                    print(f"Stopping expired bot {bot_id}")
+                    await self.stop_bot(bot_id)
+                    await db.update_bot_status(bot_id, Config.BOT_STATUS_EXPIRED)
+                    summary['stopped_expired'].append({'id': bot_id, 'username': bot.get('bot_username')})
+                else:
+                    summary['already_inactive_expired'].append({'id': bot_id, 'username': bot.get('bot_username')})
+        return summary
     
     async def restart_all_bots(self):
         """Update code for all bots and restart only those with active subscriptions.
-        Expired or unsubscribed bots will be updated but left inactive.
+        Returns a summary dict with lists of affected bots.
+        Summary keys: restarted, updated_only, stopped_expired, stopped_inactive, errors
         """
         bots = await db.get_all_bots()
+        summary = {
+            'restarted': [],
+            'updated_only': [],
+            'stopped_expired': [],
+            'stopped_inactive': [],
+            'errors': []
+        }
 
         for bot in bots:
             bot_id = bot['id']
             try:
                 # Always try to update the bot code and dependencies
-                await self.update_bot_code(bot_id)
+                updated_ok = await self.update_bot_code(bot_id)
 
                 is_subscription_active = await db.is_subscription_active(bot_id)
                 subscription = await db.get_bot_subscription(bot_id)
@@ -429,6 +448,7 @@ python-dotenv==1.0.1
                     print(f"Restarting bot {bot_id}")
                     # Proper restart to avoid duplicate processes
                     await self.restart_bot(bot_id)
+                    summary['restarted'].append({'id': bot_id, 'username': bot.get('bot_username')})
                 else:
                     # Ensure bot is not running
                     if await self.is_bot_running(bot_id):
@@ -436,10 +456,16 @@ python-dotenv==1.0.1
                     # Mark status based on whether it has a (now expired) subscription or none
                     if subscription:
                         await db.update_bot_status(bot_id, Config.BOT_STATUS_EXPIRED)
+                        summary['stopped_expired'].append({'id': bot_id, 'username': bot.get('bot_username')})
                     else:
                         await db.update_bot_status(bot_id, Config.BOT_STATUS_INACTIVE)
+                        summary['stopped_inactive'].append({'id': bot_id, 'username': bot.get('bot_username')})
+                    if updated_ok:
+                        summary['updated_only'].append({'id': bot_id, 'username': bot.get('bot_username')})
             except Exception as e:
                 print(f"Error handling bot {bot_id} during restart_all_bots: {e}")
+                summary['errors'].append({'id': bot_id, 'username': bot.get('bot_username'), 'error': str(e)})
+        return summary
     
     async def cleanup_dead_processes(self):
         """Clean up any dead bot processes"""
