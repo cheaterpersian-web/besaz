@@ -14,7 +14,7 @@ from database import db
 from bot_manager import bot_manager
 from payment_handler import payment_handler
 from monitor import monitor
-from error_handler import handle_telegram_errors
+from error_handler import handle_telegram_errors, error_handler
 from logger import logger
 import os
 
@@ -82,6 +82,9 @@ class MainBot:
 
         # Generic text handler to capture admin inline edits and token fallback (non-blocking)
         self.application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_text_messages, block=False))
+        
+        # Global application-level error handler to avoid unhandled exceptions
+        self.application.add_error_handler(self._application_error)
     
     @handle_telegram_errors
     async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -204,6 +207,7 @@ class MainBot:
         # This would be implemented to send messages to all users
         await update.message.reply_text("📢 Broadcast functionality will be implemented here.")
     
+    @handle_telegram_errors
     async def handle_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle callback queries"""
         query = update.callback_query
@@ -1405,10 +1409,10 @@ class MainBot:
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
 
+    @handle_telegram_errors
     async def handle_restart_all_bots(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Restart all bots from setup panel"""
         summary = await bot_manager.restart_all_bots()
-        await update.callback_query.answer("در حال راه‌اندازی مجدد ربات‌ها", show_alert=False)
         # Notify admin with results
         try:
             if Config.ADMIN_USER_ID:
@@ -1436,6 +1440,17 @@ class MainBot:
         except Exception:
             pass
         await self.show_setup_panel(update, context)
+
+    async def _application_error(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Global error handler for the application to log errors gracefully."""
+        try:
+            err = getattr(context, 'error', None)
+            if err is None:
+                err = Exception("Unknown error")
+            await error_handler.log_telegram_error(update, context, err)
+        except Exception:
+            # Best-effort logging; avoid raising inside error handler
+            pass
 
     async def handle_cleanup_expired(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Cleanup expired bots from setup panel"""
