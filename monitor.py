@@ -95,12 +95,21 @@ class BotMonitor:
     async def notify_user_expiration(self, user_id: int, bot: Dict[str, Any]):
         """Notify user about bot expiration"""
         try:
-            # This would send a notification to the user
-            # For now, we'll just log it
+            # Log for audit
             logger.info(f"Bot {bot['id']} (@{bot['bot_username']}) expired for user {user_id}")
-            
-            # In a real implementation, you would send a Telegram message here
-            # await send_notification(user_id, f"Your bot @{bot['bot_username']} has expired. Please renew your subscription.")
+            # Try to notify the user via main bot
+            try:
+                from telegram import Bot as PTBBot
+                from config import Config as _Cfg
+                main_bot = PTBBot(token=_Cfg.MAIN_BOT_TOKEN)
+                safe_username = bot.get('bot_username') or '-'
+                text = (
+                    f"⏰ مدت زمان ربات دمو/اشتراک شما برای @{safe_username} به پایان رسید.\n\n"
+                    f"برای خرید اشتراک ماهانه روی /subscribe بزنید."
+                )
+                await main_bot.send_message(chat_id=int(user_id), text=text)
+            except Exception:
+                pass
             
         except Exception as e:
             logger.error(f"Error notifying user {user_id} about expiration: {e}")

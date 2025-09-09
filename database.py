@@ -1,15 +1,30 @@
 import aiosqlite
+import os
 import asyncio
 from datetime import datetime, timedelta
 from typing import List, Optional, Dict, Any
 from config import Config
 
 class Database:
-    def __init__(self, db_path: str = "bot_manager.db"):
+    def __init__(self, db_path: str = "data/bot_manager.db"):
+        # Resolve to absolute path under project directory to avoid CWD issues
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        # If a URL-style was provided via code in future, strip sqlite scheme
+        if isinstance(db_path, str) and db_path.startswith("sqlite:///"):
+            db_path = db_path.replace("sqlite:///", "", 1)
+        if not os.path.isabs(db_path):
+            db_path = os.path.join(base_dir, db_path)
         self.db_path = db_path
     
     async def init_db(self):
         """Initialize the database with all required tables"""
+        # Ensure parent directory exists (e.g., 'data/')
+        try:
+            parent_dir = os.path.dirname(self.db_path)
+            if parent_dir:
+                os.makedirs(parent_dir, exist_ok=True)
+        except Exception:
+            pass
         async with aiosqlite.connect(self.db_path) as db:
             # Users table
             await db.execute('''
@@ -24,6 +39,11 @@ class Database:
                     is_active BOOLEAN DEFAULT 1
                 )
             ''')
+            # Backward-compat: add has_used_demo column if missing
+            try:
+                await db.execute("ALTER TABLE users ADD COLUMN has_used_demo INTEGER DEFAULT 0")
+            except Exception:
+                pass
             
             # Bots table
             await db.execute('''
@@ -33,6 +53,8 @@ class Database:
                     bot_token TEXT UNIQUE NOT NULL,
                     bot_username TEXT,
                     bot_name TEXT,
+                    admin_user_id INTEGER,
+                    locked_channel_id TEXT,
                     status TEXT DEFAULT 'pending',
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                     last_activity TIMESTAMP,
@@ -40,6 +62,15 @@ class Database:
                     FOREIGN KEY (owner_id) REFERENCES users (user_id)
                 )
             ''')
+            # Backward-compat: add columns if table existed without new cols
+            try:
+                await db.execute("ALTER TABLE bots ADD COLUMN admin_user_id INTEGER")
+            except Exception:
+                pass
+            try:
+                await db.execute("ALTER TABLE bots ADD COLUMN locked_channel_id TEXT")
+            except Exception:
+                pass
             
             # Subscriptions table
             await db.execute('''
@@ -87,13 +118,19 @@ class Database:
             await db.commit()
     
     # User operations
-    async def add_user(self, user_id: int, username: str = None, first_name: str = None, last_name: str = None, role: str = "user") -> bool:
-        """Add a new user to the database"""
+    async def add_user(self, user_id: int, username: str = None, first_name: str = None, last_name: str = None, role: str = None) -> bool:
+        """Add or update a user without overwriting existing role.
+        If role is provided on first insert it will be set; on updates, role is preserved.
+        """
         try:
             async with aiosqlite.connect(self.db_path) as db:
                 await db.execute('''
-                    INSERT OR REPLACE INTO users (user_id, username, first_name, last_name, role)
-                    VALUES (?, ?, ?, ?, ?)
+                    INSERT INTO users (user_id, username, first_name, last_name, role)
+                    VALUES (?, ?, ?, ?, COALESCE(?, 'user'))
+                    ON CONFLICT(user_id) DO UPDATE SET
+                        username=excluded.username,
+                        first_name=excluded.first_name,
+                        last_name=excluded.last_name
                 ''', (user_id, username, first_name, last_name, role))
                 await db.commit()
                 return True
@@ -110,18 +147,98 @@ class Database:
                 return dict(row) if row else None
     
     async def is_admin(self, user_id: int) -> bool:
-        """Check if user is admin"""
+        """Check if user is admin. Falls back to configured ADMIN_USER_ID."""
+        try:
+            if Config.ADMIN_USER_ID and int(user_id) == int(Config.ADMIN_USER_ID):
+                return True
+        except Exception:
+            pass
         user = await self.get_user(user_id)
-        return user and user['role'] == Config.USER_ROLE_ADMIN
+        return bool(user and user.get('role') == Config.USER_ROLE_ADMIN)
+
+    async def get_users_paginated(self, offset: int = 0, limit: int = 10) -> List[Dict[str, Any]]:
+        """Get users with pagination (ordered by created_at DESC)."""
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute('''
+                SELECT * FROM users
+                ORDER BY created_at DESC
+                LIMIT ? OFFSET ?
+            ''', (limit, offset)) as cursor:
+                rows = await cursor.fetchall()
+                return [dict(row) for row in rows]
+
+    async def count_users(self) -> int:
+        """Count total users."""
+        async with aiosqlite.connect(self.db_path) as db:
+            async with db.execute('SELECT COUNT(*) FROM users') as cursor:
+                row = await cursor.fetchone()
+                return int(row[0]) if row and row[0] is not None else 0
+
+    async def count_active_users(self) -> int:
+        """Count active users."""
+        async with aiosqlite.connect(self.db_path) as db:
+            async with db.execute('SELECT COUNT(*) FROM users WHERE is_active = 1') as cursor:
+                row = await cursor.fetchone()
+                return int(row[0]) if row and row[0] is not None else 0
+
+    async def count_admin_users(self) -> int:
+        """Count admin users."""
+        async with aiosqlite.connect(self.db_path) as db:
+            async with db.execute('SELECT COUNT(*) FROM users WHERE role = ?', (Config.USER_ROLE_ADMIN,)) as cursor:
+                row = await cursor.fetchone()
+                return int(row[0]) if row and row[0] is not None else 0
+
+    async def has_user_used_demo(self, user_id: int) -> bool:
+        """Return True if the user has already consumed their demo entitlement."""
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute('SELECT has_used_demo FROM users WHERE user_id = ?', (user_id,)) as cursor:
+                row = await cursor.fetchone()
+                return bool(row and (row['has_used_demo'] or row[0]))
+
+    async def set_user_used_demo(self, user_id: int, used: bool = True) -> bool:
+        """Mark that a user has used their demo entitlement."""
+        try:
+            async with aiosqlite.connect(self.db_path) as db:
+                await db.execute('UPDATE users SET has_used_demo = ? WHERE user_id = ?', (1 if used else 0, user_id))
+                await db.commit()
+                return True
+        except Exception as e:
+            print(f"Error updating has_used_demo for user {user_id}: {e}")
+            return False
+
+    async def set_user_role(self, user_id: int, role: str) -> bool:
+        """Update user's role."""
+        try:
+            async with aiosqlite.connect(self.db_path) as db:
+                await db.execute('UPDATE users SET role = ? WHERE user_id = ?', (role, user_id))
+                await db.commit()
+                return True
+        except Exception as e:
+            print(f"Error setting user role: {e}")
+            return False
+
+    async def set_user_active(self, user_id: int, is_active: bool) -> bool:
+        """Update user's active flag."""
+        try:
+            async with aiosqlite.connect(self.db_path) as db:
+                await db.execute('UPDATE users SET is_active = ? WHERE user_id = ?', (1 if is_active else 0, user_id))
+                await db.commit()
+                return True
+        except Exception as e:
+            print(f"Error setting user active flag: {e}")
+            return False
     
     # Bot operations
-    async def add_bot(self, owner_id: int, bot_token: str, bot_username: str = None, bot_name: str = None) -> int:
+    async def add_bot(self, owner_id: int, bot_token: str, bot_username: str = None, bot_name: str = None,
+                      admin_user_id: int = None, locked_channel_id: str = None) -> int:
         """Add a new bot to the database"""
         async with aiosqlite.connect(self.db_path) as db:
             cursor = await db.execute('''
-                INSERT INTO bots (owner_id, bot_token, bot_username, bot_name)
-                VALUES (?, ?, ?, ?)
-            ''', (owner_id, bot_token, bot_username, bot_name))
+                INSERT INTO bots (owner_id, bot_token, bot_username, bot_name, admin_user_id, locked_channel_id)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ''', (owner_id, bot_token, bot_username, bot_name, admin_user_id, locked_channel_id))
             await db.commit()
             return cursor.lastrowid
     
@@ -168,6 +285,20 @@ class Database:
         except Exception as e:
             print(f"Error updating bot status: {e}")
             return False
+
+    async def update_bot_admin_and_channel(self, bot_id: int, admin_user_id: int = None, locked_channel_id: str = None) -> bool:
+        """Update bot admin and locked channel settings"""
+        try:
+            async with aiosqlite.connect(self.db_path) as db:
+                await db.execute('''
+                    UPDATE bots SET admin_user_id = ?, locked_channel_id = ?
+                    WHERE id = ?
+                ''', (admin_user_id, locked_channel_id, bot_id))
+                await db.commit()
+                return True
+        except Exception as e:
+            print(f"Error updating bot admin/channel: {e}")
+            return False
     
     async def get_all_bots(self) -> List[Dict[str, Any]]:
         """Get all bots in the system"""
@@ -176,6 +307,30 @@ class Database:
             async with db.execute('SELECT * FROM bots ORDER BY created_at DESC') as cursor:
                 rows = await cursor.fetchall()
                 return [dict(row) for row in rows]
+
+    async def delete_bot(self, bot_id: int, owner_id: int) -> bool:
+        """Delete a bot and related data (subscriptions, payments referencing it).
+        Requires owner_id match to prevent deleting others' bots.
+        """
+        try:
+            async with aiosqlite.connect(self.db_path) as db:
+                db.row_factory = aiosqlite.Row
+                # Ensure ownership
+                async with db.execute('SELECT owner_id FROM bots WHERE id = ?', (bot_id,)) as cur:
+                    row = await cur.fetchone()
+                    if not row or int(row['owner_id']) != int(owner_id):
+                        return False
+                # Delete related subscriptions
+                await db.execute('DELETE FROM subscriptions WHERE bot_id = ?', (bot_id,))
+                # Null payments' bot_id to retain payment history
+                await db.execute('UPDATE payments SET bot_id = NULL WHERE bot_id = ?', (bot_id,))
+                # Delete the bot itself
+                await db.execute('DELETE FROM bots WHERE id = ?', (bot_id,))
+                await db.commit()
+                return True
+        except Exception as e:
+            print(f"Error deleting bot {bot_id}: {e}")
+            return False
     
     # Subscription operations
     async def add_subscription(self, bot_id: int, plan_type: str, duration_days: int) -> int:
@@ -252,6 +407,14 @@ class Database:
             ''') as cursor:
                 rows = await cursor.fetchall()
                 return [dict(row) for row in rows]
+    
+    async def get_payment(self, payment_id: int) -> Optional[Dict[str, Any]]:
+        """Get a single payment by id"""
+        async with aiosqlite.connect(self.db_path) as db:
+            db.row_factory = aiosqlite.Row
+            async with db.execute('SELECT * FROM payments WHERE id = ?', (payment_id,)) as cursor:
+                row = await cursor.fetchone()
+                return dict(row) if row else None
     
     async def update_payment_status(self, payment_id: int, status: str, processed_by: int) -> bool:
         """Update payment status"""

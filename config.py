@@ -14,8 +14,10 @@ class Config:
     DATABASE_URL = os.getenv('DATABASE_URL', 'sqlite:///bot_manager.db')
     
     # Bot Deployment Configuration
-    BOT_REPO_URL = os.getenv('BOT_REPO_URL', 'https://github.com/your-username/telegram-bot-template.git')
-    BOT_DEPLOYMENT_DIR = os.getenv('BOT_DEPLOYMENT_DIR', '/workspace/deployed_bots')
+    BOT_REPO_URL = os.getenv('BOT_REPO_URL', 'https://github.com/wings-iran/WINGSBOT_FREE')
+    # Default to a folder named 'deployed bot' inside the project directory (supports space as user requested)
+    _BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    BOT_DEPLOYMENT_DIR = os.getenv('BOT_DEPLOYMENT_DIR', os.path.join(_BASE_DIR, 'deployed bot'))
     BOT_PYTHON_PATH = os.getenv('BOT_PYTHON_PATH', '/usr/bin/python3')
     
     # Payment Configuration
@@ -31,6 +33,9 @@ class Config:
     PRICE_1_MONTH = float(os.getenv('PRICE_1_MONTH', 10.00))
     PRICE_2_MONTHS = float(os.getenv('PRICE_2_MONTHS', 18.00))
     PRICE_3_MONTHS = float(os.getenv('PRICE_3_MONTHS', 25.00))
+    
+    # Demo Mode
+    DEMO_DURATION_DAYS = int(os.getenv('DEMO_DURATION_DAYS', 1))
     
     # Bot Status
     BOT_STATUS_ACTIVE = "active"

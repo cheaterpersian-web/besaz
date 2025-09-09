@@ -11,14 +11,29 @@ class ErrorHandler:
         self.logger = logger
     
     def handle_telegram_error(self, func: Callable) -> Callable:
-        """Decorator to handle Telegram bot errors"""
+        """Decorator to handle Telegram bot errors (works with bound methods)."""
         @wraps(func)
-        async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE, *args, **kwargs):
+        async def wrapper(*args, **kwargs):
+            # Support both bound methods (self, update, context) and plain functions (update, context)
             try:
-                return await func(update, context, *args, **kwargs)
+                if len(args) >= 3 and not isinstance(args[0], Update):
+                    self_obj, update, context = args[0], args[1], args[2]
+                    remaining = args[3:]
+                    return await func(self_obj, update, context, *remaining, **kwargs)
+                else:
+                    update, context = args[0], args[1]
+                    remaining = args[2:]
+                    return await func(update, context, *remaining, **kwargs)
             except Exception as e:
-                await self.log_telegram_error(update, context, e)
-                await self.send_error_response(update, context, e)
+                # Extract update/context for logging safely
+                try:
+                    upd = update if 'update' in locals() else (args[1] if len(args) > 1 and isinstance(args[1], Update) else None)
+                    ctx = context if 'context' in locals() else (args[2] if len(args) > 2 else None)
+                    await self.log_telegram_error(upd, ctx, e)
+                    await self.send_error_response(upd, ctx, e)
+                except Exception:
+                    # As last resort, log raw exception
+                    self.logger.error(f"Unhandled telegram error: {e}")
         return wrapper
     
     def handle_async_error(self, func: Callable) -> Callable:
@@ -45,8 +60,17 @@ class ErrorHandler:
     
     async def log_telegram_error(self, update: Update, context: ContextTypes.DEFAULT_TYPE, error: Exception):
         """Log Telegram bot error with context"""
-        user_id = update.effective_user.id if update.effective_user else "Unknown"
-        chat_id = update.effective_chat.id if update.effective_chat else "Unknown"
+        user_id = None
+        chat_id = None
+        try:
+            if update and getattr(update, 'effective_user', None):
+                user_id = update.effective_user.id
+            if update and getattr(update, 'effective_chat', None):
+                chat_id = update.effective_chat.id
+        except Exception:
+            pass
+        user_id = user_id or "Unknown"
+        chat_id = chat_id or "Unknown"
         
         error_details = {
             "user_id": user_id,
