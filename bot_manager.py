@@ -354,7 +354,13 @@ python-dotenv==1.0.1
         bot_info = await db.get_bot(bot_id)
         if not bot_info:
             return False
-        
+
+        # Always try to update bot code before restart so latest changes take effect
+        try:
+            await self.update_bot_code(bot_id)
+        except Exception as e:
+            print(f"Error updating code before restart for bot {bot_id}: {e}")
+
         # Stop the bot first
         await self.stop_bot(bot_id)
         
