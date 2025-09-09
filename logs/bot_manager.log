@@ -1,2 +1,7 @@
-2025-09-08 03:55:04,155 - __main__ - INFO - Starting Telegram Bot Manager System...
-2025-09-08 03:55:04,156 - __main__ - ERROR - Unexpected error: unable to open database file
+nohup: ignoring input
+Traceback (most recent call last):
+  File "/workspace/run.py", line 15, in <module>
+    from main_bot import MainBot
+  File "/workspace/main_bot.py", line 3, in <module>
+    from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, Bot
+ModuleNotFoundError: No module named 'telegram'
