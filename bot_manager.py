@@ -8,6 +8,7 @@ from typing import Optional, Dict, Any
 import git
 from config import Config
 from database import db
+from logger import logger
 
 class BotManager:
     def __init__(self):
@@ -61,6 +62,7 @@ class BotManager:
         """Create deployment directory if it doesn't exist"""
         if not os.path.exists(self.deployment_dir):
             os.makedirs(self.deployment_dir)
+            logger.log_system_event("Created deployment directory", details=self.deployment_dir)
     
     async def clone_bot_template(self, bot_id: int) -> bool:
         """Clone the bot template repository for a specific bot"""
@@ -73,18 +75,22 @@ class BotManager:
             
             # Clone the repository; if fails, fall back to local template
             try:
+                logger.log_bot_event(bot_id, "Cloning bot repository", details=f"repo={self.repo_url}")
                 git.Repo.clone_from(self.repo_url, bot_dir)
+                logger.log_bot_event(bot_id, "Clone completed", details=bot_dir)
             except Exception:
                 # Fallback: create minimal template locally
+                logger.log_bot_event(bot_id, "Clone failed, creating local template")
                 await self.create_bot_template(bot_dir)
             
             return True
         except Exception as e:
-            print(f"Error cloning bot template: {e}")
+            logger.error(f"Error cloning bot template: {e}")
             return False
     
     async def create_bot_template(self, bot_dir: str):
         """Create a basic bot template (python-telegram-bot v21)"""
+        logger.log_system_event("Generating minimal bot template", details=bot_dir)
         bot_code = '''import asyncio
 import logging
 from telegram import Update
@@ -166,6 +172,7 @@ python-dotenv==1.0.1
         """
         try:
             bot_dir = os.path.join(self.deployment_dir, f"bot_{bot_id}")
+            logger.log_bot_event(bot_id, "Update requested", details=bot_dir)
             # Ensure bot directory exists
             if not os.path.exists(bot_dir):
                 # Create by cloning or generating template
@@ -177,20 +184,41 @@ python-dotenv==1.0.1
             if os.path.exists(git_dir):
                 try:
                     repo = git.Repo(bot_dir)
+                    old_sha = None
+                    try:
+                        old_sha = repo.head.commit.hexsha[:7]
+                    except Exception:
+                        pass
                     try:
                         # Discard local changes to avoid merge conflicts during pull
                         repo.git.reset('--hard')
                     except Exception:
                         pass
                     # Pull latest changes from origin
-                    repo.remotes.origin.pull()
+                    pull_info = repo.remotes.origin.pull()
+                    new_sha = None
+                    try:
+                        new_sha = repo.head.commit.hexsha[:7]
+                    except Exception:
+                        pass
+                    details = f"pulled origin -> {new_sha or '-'}"
+                    if old_sha and new_sha:
+                        details = f"{old_sha} -> {new_sha}"
+                    # Summarize pulled refs if available
+                    try:
+                        if pull_info:
+                            ref_summaries = ", ".join([f"{pi.name}:{getattr(pi, 'commit', None) and getattr(pi.commit, 'hexsha', '')[:7]}" for pi in pull_info])
+                            details += f" | refs: {ref_summaries}"
+                    except Exception:
+                        pass
+                    logger.log_bot_event(bot_id, "Git pull completed", details=details)
                 except Exception as e:
-                    print(f"Error updating repo for bot {bot_id}: {e}")
+                    logger.error(f"Error updating repo for bot {bot_id}: {e}")
                     return False
             else:
                 # Not a git repo; skip code update to avoid nuking local files
                 # Admin can re-deploy if needed to convert to git-backed.
-                pass
+                logger.log_bot_event(bot_id, "Skipping update: not a git repository", details=bot_dir)
 
             # Ensure Python venv and working pip
             python_exec = self._ensure_pip_ok(bot_dir)
@@ -202,17 +230,19 @@ python-dotenv==1.0.1
             if os.path.exists(requirements_file):
                 env = os.environ.copy()
                 env['PIP_DISABLE_PIP_VERSION_CHECK'] = '1'
+                logger.log_bot_event(bot_id, "Installing dependencies", details=requirements_file)
                 subprocess.run([python_exec, "-m", "pip", "install", "-r", requirements_file, "--no-cache-dir", "-q"], cwd=bot_dir, check=True, env=env)
 
             return True
         except Exception as e:
-            print(f"Error updating code for bot {bot_id}: {e}")
+            logger.error(f"Error updating code for bot {bot_id}: {e}")
             return False
     
     async def deploy_bot(self, bot_id: int, bot_token: str) -> bool:
         """Deploy a bot with the given token"""
         try:
             bot_dir = os.path.join(self.deployment_dir, f"bot_{bot_id}")
+            logger.log_bot_event(bot_id, "Deploy requested", details=bot_dir)
             
             # Ensure repo present: if BOT_REPO_URL is set but directory is missing or not a git repo, reclone
             need_clone = False
@@ -238,6 +268,7 @@ python-dotenv==1.0.1
             if entrypoint is None:
                 await self.create_bot_template(bot_dir)
                 entrypoint = "bot.py"
+            logger.log_bot_event(bot_id, "Entrypoint resolved", details=entrypoint)
             
             # Create .env file with bot token and optional admin/channel
             env_file = os.path.join(bot_dir, ".env")
@@ -247,6 +278,7 @@ python-dotenv==1.0.1
                     admin_id=str(Config.ADMIN_USER_ID or ""),
                     channel_id=str(Config.LOCKED_CHANNEL_ID or "")
                 ))
+            logger.log_bot_event(bot_id, ".env written", details=env_file)
             
             # Ensure venv + working pip
             python_exec = self._ensure_pip_ok(bot_dir)
@@ -258,6 +290,7 @@ python-dotenv==1.0.1
             if os.path.exists(requirements_file):
                 env = os.environ.copy()
                 env['PIP_DISABLE_PIP_VERSION_CHECK'] = '1'
+                logger.log_bot_event(bot_id, "Installing dependencies", details=requirements_file)
                 subprocess.run([python_exec, "-m", "pip", "install", "-r", requirements_file, "--no-cache-dir", "-q"], cwd=bot_dir, check=True, env=env)
             
             # Start the bot process (log to files to avoid pipe blocking)
@@ -304,10 +337,11 @@ python-dotenv==1.0.1
             
             # Update database
             await db.update_bot_status(bot_id, Config.BOT_STATUS_ACTIVE, process.pid)
+            logger.log_bot_event(bot_id, "Bot started", details=f"pid={process.pid}")
             
             return True
         except Exception as e:
-            print(f"Error deploying bot {bot_id}: {e}")
+            logger.error(f"Error deploying bot {bot_id}: {e}")
             return False
     
     async def stop_bot(self, bot_id: int) -> bool:
@@ -318,14 +352,17 @@ python-dotenv==1.0.1
                 process_info = self.running_bots[bot_id]
                 process = process_info['process']
                 # Terminate the process
+                logger.log_bot_event(bot_id, "Stopping bot (in-memory)")
                 process.terminate()
                 try:
                     process.wait(timeout=10)
                 except subprocess.TimeoutExpired:
+                    logger.log_bot_event(bot_id, "Terminate timeout; killing process")
                     process.kill()
                     process.wait()
                 del self.running_bots[bot_id]
                 await db.update_bot_status(bot_id, Config.BOT_STATUS_INACTIVE)
+                logger.log_bot_event(bot_id, "Bot stopped")
                 return True
 
             # Fallback: stop by PID stored in DB, if any
@@ -334,19 +371,22 @@ python-dotenv==1.0.1
                 pid = int(bot_info['process_id'])
                 try:
                     p = psutil.Process(pid)
+                    logger.log_bot_event(bot_id, "Stopping bot by PID", details=f"pid={pid}")
                     p.terminate()
                     try:
                         p.wait(timeout=10)
                     except psutil.TimeoutExpired:
+                        logger.log_bot_event(bot_id, "Terminate timeout by PID; killing", details=f"pid={pid}")
                         p.kill()
                         p.wait()
                     await db.update_bot_status(bot_id, Config.BOT_STATUS_INACTIVE)
+                    logger.log_bot_event(bot_id, "Bot stopped by PID", details=f"pid={pid}")
                     return True
                 except Exception:
                     pass
             return False
         except Exception as e:
-            print(f"Error stopping bot {bot_id}: {e}")
+            logger.error(f"Error stopping bot {bot_id}: {e}")
             return False
     
     async def restart_bot(self, bot_id: int) -> bool:
@@ -357,17 +397,20 @@ python-dotenv==1.0.1
 
         # Always try to update bot code before restart so latest changes take effect
         try:
+            logger.log_bot_event(bot_id, "Restart requested: updating code")
             await self.update_bot_code(bot_id)
         except Exception as e:
-            print(f"Error updating code before restart for bot {bot_id}: {e}")
+            logger.error(f"Error updating code before restart for bot {bot_id}: {e}")
 
         # Stop the bot first
+        logger.log_bot_event(bot_id, "Restart: stopping")
         await self.stop_bot(bot_id)
         
         # Wait a moment
         await asyncio.sleep(2)
         
         # Start it again
+        logger.log_bot_event(bot_id, "Restart: starting")
         return await self.deploy_bot(bot_id, bot_info['bot_token'])
     
     async def is_bot_running(self, bot_id: int) -> bool:
@@ -419,7 +462,7 @@ python-dotenv==1.0.1
             
             if not is_subscription_active:
                 if await self.is_bot_running(bot_id):
-                    print(f"Stopping expired bot {bot_id}")
+                    logger.log_bot_event(bot_id, "Stopping expired bot")
                     await self.stop_bot(bot_id)
                     await db.update_bot_status(bot_id, Config.BOT_STATUS_EXPIRED)
                     summary['stopped_expired'].append({'id': bot_id, 'username': bot.get('bot_username')})
@@ -440,6 +483,7 @@ python-dotenv==1.0.1
             'stopped_inactive': [],
             'errors': []
         }
+        logger.log_system_event("Restart-all requested", details=f"total_bots={len(bots)}")
 
         for bot in bots:
             bot_id = bot['id']
@@ -451,7 +495,7 @@ python-dotenv==1.0.1
                 subscription = await db.get_bot_subscription(bot_id)
 
                 if is_subscription_active:
-                    print(f"Restarting bot {bot_id}")
+                    logger.log_bot_event(bot_id, "Restarting (active subscription)")
                     # Proper restart to avoid duplicate processes
                     await self.restart_bot(bot_id)
                     summary['restarted'].append({'id': bot_id, 'username': bot.get('bot_username')})
@@ -469,7 +513,7 @@ python-dotenv==1.0.1
                     if updated_ok:
                         summary['updated_only'].append({'id': bot_id, 'username': bot.get('bot_username')})
             except Exception as e:
-                print(f"Error handling bot {bot_id} during restart_all_bots: {e}")
+                logger.error(f"Error handling bot {bot_id} during restart_all_bots: {e}")
                 summary['errors'].append({'id': bot_id, 'username': bot.get('bot_username'), 'error': str(e)})
         return summary
     
@@ -483,7 +527,7 @@ python-dotenv==1.0.1
                 dead_bots.append(bot_id)
         
         for bot_id in dead_bots:
-            print(f"Cleaning up dead process for bot {bot_id}")
+            logger.log_bot_event(bot_id, "Cleaning up dead process")
             del self.running_bots[bot_id]
             await db.update_bot_status(bot_id, Config.BOT_STATUS_INACTIVE)
 
@@ -499,9 +543,10 @@ python-dotenv==1.0.1
             bot_dir = os.path.join(self.deployment_dir, f"bot_{bot_id}")
             if os.path.exists(bot_dir):
                 shutil.rmtree(bot_dir, ignore_errors=True)
+                logger.log_bot_event(bot_id, "Bot files removed", details=bot_dir)
             return True
         except Exception as e:
-            print(f"Error deleting bot files {bot_id}: {e}")
+            logger.error(f"Error deleting bot files {bot_id}: {e}")
             return False
 
 # Global bot manager instance
