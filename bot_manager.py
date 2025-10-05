@@ -76,7 +76,8 @@ class BotManager:
             # Clone the repository; if fails, fall back to local template
             try:
                 logger.log_bot_event(bot_id, "Cloning bot repository", details=f"repo={self.repo_url}")
-                git.Repo.clone_from(self.repo_url, bot_dir)
+                # Shallow, single-branch clone to reduce disk and time
+                git.Repo.clone_from(self.repo_url, bot_dir, depth=1, single_branch=True)
                 logger.log_bot_event(bot_id, "Clone completed", details=bot_dir)
             except Exception:
                 # Fallback: create minimal template locally
@@ -298,8 +299,8 @@ python-dotenv==1.0.1
             os.makedirs(logs_dir, exist_ok=True)
             stdout_path = os.path.join(logs_dir, 'stdout.log')
             stderr_path = os.path.join(logs_dir, 'stderr.log')
-            stdout_file = open(stdout_path, 'ab')
-            stderr_file = open(stderr_path, 'ab')
+            stdout_file = open(stdout_path, 'ab', buffering=0)
+            stderr_file = open(stderr_path, 'ab', buffering=0)
 
             # Pass BOT_TOKEN via environment to support repos that read env directly
             env = os.environ.copy()

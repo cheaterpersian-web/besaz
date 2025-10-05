@@ -1,7 +1,0 @@
-nohup: ignoring input
-Traceback (most recent call last):
-  File "/workspace/run.py", line 15, in <module>
-    from main_bot import MainBot
-  File "/workspace/main_bot.py", line 3, in <module>
-    from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, Bot
-ModuleNotFoundError: No module named 'telegram'

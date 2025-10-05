@@ -11,7 +11,8 @@ logger = logging.getLogger(__name__)
 class BotMonitor:
     def __init__(self):
         self.running = False
-        self.check_interval = 300  # 5 minutes
+        # Check less frequently to reduce CPU/memory usage (10 minutes)
+        self.check_interval = 600
     
     async def start_monitoring(self):
         """Start the monitoring loop"""

@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Virtual environments
+venv/
+.env
+.env.local
+
+# Logs
+logs/
+*.log
+logs.out
+
+# Databases
+bot_manager.db
+/data/
+
+# PIDs
+*.pid
+
+# Deployed bots (runtime artifacts)
+/deployed_bots/
+deployed bot/
+
+# Editor/OS
+.DS_Store
+*.swp
+.idea/
+.vscode/

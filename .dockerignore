@@ -1,0 +1,22 @@
+# Docker build context slimming
+.git
+__pycache__
+*.py[cod]
+*.pyo
+*.pyd
+
+venv
+.env
+logs
+*.log
+logs.out
+
+bot_manager.db
+data
+
+.deployed_bots
+deployed_bots
+
+.DS_Store
+.idea
+.vscode
