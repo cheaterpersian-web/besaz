@@ -40,8 +40,8 @@ class BotManagerLogger:
         # File handler for general logs
         file_handler = logging.handlers.RotatingFileHandler(
             os.path.join(self.log_dir, 'bot_manager.log'),
-            maxBytes=10*1024*1024,  # 10MB
-            backupCount=5
+            maxBytes=2*1024*1024,  # 2MB
+            backupCount=2
         )
         file_handler.setLevel(logging.INFO)
         file_handler.setFormatter(detailed_formatter)
@@ -50,8 +50,8 @@ class BotManagerLogger:
         # Error file handler
         error_handler = logging.handlers.RotatingFileHandler(
             os.path.join(self.log_dir, 'errors.log'),
-            maxBytes=5*1024*1024,  # 5MB
-            backupCount=3
+            maxBytes=1*1024*1024,  # 1MB
+            backupCount=1
         )
         error_handler.setLevel(logging.ERROR)
         error_handler.setFormatter(detailed_formatter)
@@ -60,8 +60,8 @@ class BotManagerLogger:
         # Security/audit log handler
         audit_handler = logging.handlers.RotatingFileHandler(
             os.path.join(self.log_dir, 'audit.log'),
-            maxBytes=5*1024*1024,  # 5MB
-            backupCount=10
+            maxBytes=2*1024*1024,  # 2MB
+            backupCount=2
         )
         audit_handler.setLevel(logging.INFO)
         audit_handler.setFormatter(detailed_formatter)
@@ -71,6 +71,16 @@ class BotManagerLogger:
         self.audit_logger.setLevel(logging.INFO)
         self.audit_logger.addHandler(audit_handler)
         self.audit_logger.propagate = False
+
+        # Reduce verbosity of noisy third-party loggers
+        try:
+            logging.getLogger("telegram").setLevel(logging.WARNING)
+        except Exception:
+            pass
+        try:
+            logging.getLogger("httpx").setLevel(logging.WARNING)
+        except Exception:
+            pass
     
     def info(self, message: str, **kwargs):
         """Log info message"""
